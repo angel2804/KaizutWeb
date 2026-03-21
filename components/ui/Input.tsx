@@ -34,9 +34,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               w-full rounded-xl px-4 py-2.5 text-sm text-white
               bg-white/5 border
               placeholder:text-slate-500
-              focus:outline-none focus:ring-2 focus:ring-blue-500/50
+              focus:outline-none focus:ring-2 focus:ring-red-500/50
               transition-colors duration-200
-              ${error ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 hover:border-white/20 focus:border-blue-500/50'}
+              ${error ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 hover:border-white/20 focus:border-red-500/50'}
               ${icon ? 'pl-10' : ''}
               ${rightIcon ? 'pr-10' : ''}
               ${className}

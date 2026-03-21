@@ -47,8 +47,8 @@ export default function Hero() {
       />
 
       {/* Floating orbs */}
-      <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-blue-600/10 blur-3xl animate-[float_8s_ease-in-out_infinite]" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-orange-500/8 blur-3xl animate-[float_10s_ease-in-out_infinite_reverse]" />
+      <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-red-600/10 blur-3xl animate-[float_8s_ease-in-out_infinite]" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-teal-700/8 blur-3xl animate-[float_10s_ease-in-out_infinite_reverse]" />
 
       <div className="relative z-10 max-w-5xl mx-auto text-center">
         {/* Badge */}
@@ -56,9 +56,9 @@ export default function Hero() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-8"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium mb-8"
         >
-          <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
           Sistema de Puntos activo — Gana recompensas en cada carga
         </motion.div>
 
@@ -154,7 +154,7 @@ export default function Hero() {
           transition={{ duration: 1.5, repeat: Infinity }}
           className="w-5 h-8 rounded-full border border-white/20 flex items-start justify-center pt-1.5"
         >
-          <div className="w-1 h-2 rounded-full bg-blue-400" />
+          <div className="w-1 h-2 rounded-full bg-red-400" />
         </motion.div>
       </motion.div>
     </section>

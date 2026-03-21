@@ -32,7 +32,7 @@ export default function Services() {
           viewport={{ once: true, margin: '-80px' }}
           className="text-center mb-16"
         >
-          <Badge color="blue" className="mb-4 text-sm px-4 py-1.5">
+          <Badge color="red" className="mb-4 text-sm px-4 py-1.5">
             ⛽ Nuestros Combustibles
           </Badge>
           <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">

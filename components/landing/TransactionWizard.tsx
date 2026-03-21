@@ -323,7 +323,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/8">
               {(['dni', 'nombre', 'placa', 'qr'] as SearchTab[]).map(tab => (
                 <button key={tab} onClick={() => { setSearchTab(tab); setSearchResults([]); setSearchError('') }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${searchTab === tab ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${searchTab === tab ? 'bg-red-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                   {tab === 'dni' ? 'DNI' : tab === 'nombre' ? 'Nombre' : tab === 'placa' ? 'Placa' : '📷 QR'}
                 </button>
               ))}
@@ -402,7 +402,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                     <button
                       type="button"
                       onClick={() => { setShowPlateReg(true); setSearchError('') }}
-                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+                      className="text-sm text-red-400 hover:text-blue-300 transition-colors">
                       + Registrar placa a un cliente existente
                     </button>
                   </div>
@@ -420,7 +420,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                         value={plateRegDni}
                         onChange={e => { setPlateRegDni(e.target.value.replace(/\D/g, '').slice(0, 8)); setPlateRegCustomer(null); setPlateRegError('') }}
                         placeholder="DNI del cliente"
-                        className="flex-1 rounded-xl px-3 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-slate-500"
+                        className="flex-1 rounded-xl px-3 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-slate-500"
                       />
                       <Button variant="secondary" size="sm"
                         disabled={plateRegDni.length !== 8} loading={plateRegSearching}
@@ -502,11 +502,11 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                       {/* Scanning overlay */}
                       {cameraActive && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-40 h-40 border-2 border-blue-400/70 rounded-xl relative">
-                            <span className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-blue-400 rounded-tl-lg" />
-                            <span className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-blue-400 rounded-tr-lg" />
-                            <span className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-blue-400 rounded-bl-lg" />
-                            <span className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-blue-400 rounded-br-lg" />
+                          <div className="w-40 h-40 border-2 border-red-400/70 rounded-xl relative">
+                            <span className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-red-400 rounded-tl-lg" />
+                            <span className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-red-400 rounded-tr-lg" />
+                            <span className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-red-400 rounded-bl-lg" />
+                            <span className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-red-400 rounded-br-lg" />
                           </div>
                         </div>
                       )}
@@ -519,7 +519,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                       </button>
                     ) : (
                       <button onClick={startCamera}
-                        className="w-full py-2.5 text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                        className="w-full py-2.5 text-sm font-bold rounded-xl bg-blue-600 hover:bg-red-500 text-white transition-colors">
                         Activar cámara
                       </button>
                     )}
@@ -625,7 +625,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             {/* Register new shortcut */}
             <div className="pt-2 border-t border-white/5 text-center">
               <button onClick={() => { setPrefillDni(''); setRegForm({ full_name: '', dni: '', phone: '', email: '' }); setStep('register') }}
-                className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+                className="text-sm text-red-400 hover:text-blue-300 transition-colors">
                 + Registrar cliente nuevo
               </button>
             </div>
@@ -690,7 +690,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             {/* Mode toggle */}
             <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/8 mb-4">
               <button type="button" onClick={() => { setTxMode('compra'); setTxError('') }}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${txMode === 'compra' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${txMode === 'compra' ? 'bg-red-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                 💳 Compra
               </button>
               <button type="button" onClick={() => { setTxMode('canje'); setTxError('') }}
@@ -724,7 +724,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                     <div className="grid grid-cols-4 gap-2">
                       {FUEL_TYPES.map(ft => (
                         <button key={ft} type="button" onClick={() => setFuelType(ft)}
-                          className={`py-2 text-sm font-medium rounded-xl border transition-colors ${fuelType === ft ? 'bg-blue-600/30 border-blue-500/50 text-blue-300' : 'bg-white/4 border-white/10 text-slate-400 hover:bg-white/8'}`}>
+                          className={`py-2 text-sm font-medium rounded-xl border transition-colors ${fuelType === ft ? 'bg-red-600/30 border-red-500/50 text-red-300' : 'bg-white/4 border-white/10 text-slate-400 hover:bg-white/8'}`}>
                           {ft}
                         </button>
                       ))}
@@ -790,7 +790,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                         if (selected && val !== selected.plate) setVehicleId('')
                       }}
                       placeholder="Ej: ABC-123 o déjalo vacío"
-                      className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-slate-500 transition-colors"
+                      className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-slate-500 transition-colors"
                     />
                     {/* Suggestions list */}
                     {plateSearch && matches.length > 0 && (
@@ -800,7 +800,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                             onClick={() => { setVehicleId(v.id); setPlateSearch(v.plate) }}
                             className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2 ${vehicleId === v.id ? 'bg-blue-600/30 text-blue-300' : 'text-slate-300 hover:bg-white/8'}`}>
                             🚗 {v.plate}
-                            {vehicleId === v.id && <span className="text-xs text-blue-400 ml-auto">✓ seleccionado</span>}
+                            {vehicleId === v.id && <span className="text-xs text-red-400 ml-auto">✓ seleccionado</span>}
                           </button>
                         ))}
                       </div>
@@ -809,7 +809,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                       <p className="text-xs text-slate-500 mt-1">Placa nueva — se registrará automáticamente al guardar</p>
                     )}
                     {vehicleId && selected && (
-                      <p className="text-xs text-blue-400 mt-1">Placa {selected.plate} seleccionada</p>
+                      <p className="text-xs text-red-400 mt-1">Placa {selected.plate} seleccionada</p>
                     )}
                   </div>
                 )

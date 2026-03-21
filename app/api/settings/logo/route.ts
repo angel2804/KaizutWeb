@@ -18,31 +18,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Solo se permiten imágenes' }, { status: 400 })
   }
 
-  const ext = file.name.split('.').pop() ?? 'png'
-  const fileName = `company-logo.${ext}`
+  if (file.size > 1024 * 1024) {
+    return NextResponse.json({ error: 'La imagen no debe superar 1 MB' }, { status: 400 })
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer())
+  const base64 = buffer.toString('base64')
+  const dataUrl = `data:${file.type};base64,${base64}`
 
   const supabase = await createServiceClient()
 
-  const { error: uploadError } = await supabase.storage
-    .from('logos')
-    .upload(fileName, buffer, {
-      contentType: file.type,
-      upsert: true,
-    })
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'company_logo_url', value: dataUrl }, { onConflict: 'key' })
 
-  if (uploadError) {
-    return NextResponse.json({ error: 'Error al subir imagen: ' + uploadError.message }, { status: 500 })
+  if (error) {
+    return NextResponse.json({ error: 'Error al guardar logo: ' + error.message }, { status: 500 })
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('logos')
-    .getPublicUrl(fileName)
-
-  // Store URL in app_settings
-  await supabase
-    .from('app_settings')
-    .upsert({ key: 'company_logo_url', value: publicUrl }, { onConflict: 'key' })
-
-  return NextResponse.json({ url: publicUrl })
+  return NextResponse.json({ url: dataUrl })
 }

@@ -1,11 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-blue-kaizut: #2563EB;
-  --color-blue-kaizut-dark: #1E40AF;
-  --color-blue-kaizut-light: #3B82F6;
-  --color-accent-yellow: #FACC15;
-  --color-accent-orange: #F97316;
+  --color-brand-red: #DC2626;
+  --color-brand-red-dark: #B91C1C;
+  --color-brand-red-light: #EF4444;
+  --color-brand-teal: #0F766E;
+  --color-brand-teal-dark: #0D5C5A;
+  --color-brand-teal-light: #14B8A6;
+  --color-accent-gold: #F59E0B;
   --color-navy: #0a0f1e;
   --color-navy-900: #0f172a;
   --color-navy-800: #1e293b;
@@ -20,10 +22,10 @@
   --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-hover: rgba(255, 255, 255, 0.2);
-  --blue-primary: #2563eb;
-  --blue-dark: #1e40af;
-  --accent-yellow: #facc15;
-  --accent-orange: #f97316;
+  --brand-red: #DC2626;
+  --brand-red-dark: #B91C1C;
+  --brand-teal: #0F766E;
+  --accent-gold: #F59E0B;
 }
 
 * {
@@ -55,16 +57,16 @@ body {
   border-color: var(--glass-border-hover);
 }
 
-/* Gradient text */
+/* Gradient text — white → red → gold */
 .gradient-text {
-  background: linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #facc15 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f87171 50%, #F59E0B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-blue {
-  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #f87171 0%, #DC2626 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -78,11 +80,11 @@ body {
   background: #0f172a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2563eb44;
+  background: #DC262644;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2563eb88;
+  background: #DC262688;
 }
 
 /* Keyframes */
@@ -92,8 +94,8 @@ body {
 }
 
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(37, 99, 235, 0.3); }
-  50% { box-shadow: 0 0 45px rgba(37, 99, 235, 0.7); }
+  0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
+  50% { box-shadow: 0 0 45px rgba(220, 38, 38, 0.7); }
 }
 
 @keyframes gradientShift {
@@ -101,12 +103,12 @@ body {
   50% { background-position: 100% 50%; }
 }
 
-/* Animated background */
+/* Animated background — red glow top, teal accent bottom */
 .hero-bg {
   background:
-    radial-gradient(ellipse 80% 60% at 50% -20%, rgba(37, 99, 235, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(249, 115, 22, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 10% 80%, rgba(37, 99, 235, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 50% -20%, rgba(220, 38, 38, 0.30) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(15, 118, 110, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 10% 80%, rgba(220, 38, 38, 0.08) 0%, transparent 50%),
     #0a0f1e;
 }
 

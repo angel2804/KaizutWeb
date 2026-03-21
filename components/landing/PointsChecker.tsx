@@ -92,12 +92,12 @@ export default function PointsChecker() {
           viewport={{ once: true, margin: '-80px' }}
           className="text-center mb-12"
         >
-          <Badge color="blue" className="mb-4 text-sm px-4 py-1.5">
+          <Badge color="red" className="mb-4 text-sm px-4 py-1.5">
             🎯 Mis Puntos
           </Badge>
           <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">
             Consulta tu{' '}
-            <span className="text-blue-400">saldo de puntos</span>
+            <span className="text-red-400">saldo de puntos</span>
           </h2>
           <p className="text-slate-400 text-lg max-w-xl mx-auto">
             Ingresa tu DNI y mira cuántos puntos llevas acumulados y tu historial de cargas.
@@ -120,14 +120,14 @@ export default function PointsChecker() {
               value={dni}
               onChange={e => { setDni(e.target.value.replace(/\D/g, '').slice(0, 8)); setError('') }}
               placeholder="DNI (8 dígitos)"
-              className="flex-1 rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 placeholder:text-slate-500 transition-colors"
+              className="flex-1 rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 placeholder:text-slate-500 transition-colors"
             />
             <motion.button
               type="submit"
               disabled={dni.length !== 8 || loading}
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
-              className="px-5 py-3 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-3 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

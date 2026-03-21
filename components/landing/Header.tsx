@@ -91,7 +91,7 @@ export default function Header() {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(37,99,235,0.5)] group-hover:shadow-[0_0_25px_rgba(37,99,235,0.7)] transition-shadow flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:shadow-[0_0_25px_rgba(220,38,38,0.7)] transition-shadow flex-shrink-0">
               {logoUrl
                 ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
                 : <span>⛽</span>
@@ -127,7 +127,7 @@ export default function Header() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleNavClick('#puntos')}
-              className="px-4 py-2 text-sm font-semibold text-blue-400 border border-blue-500/40 hover:bg-blue-500/10 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-red-400 border border-red-500/40 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
             >
               🎯 Consultar Puntos
             </motion.button>
@@ -135,7 +135,7 @@ export default function Header() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleNavClick('#empresas')}
-              className="px-4 py-2 text-sm font-semibold text-navy-900 bg-yellow-400 hover:bg-yellow-300 rounded-xl transition-colors shadow-[0_0_15px_rgba(250,204,21,0.3)] cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-xl transition-colors shadow-[0_0_15px_rgba(15,118,110,0.4)] cursor-pointer"
             >
               Contactar
             </motion.button>
@@ -180,7 +180,7 @@ export default function Header() {
                 <div className="border-t border-white/5 mt-2 pt-2 flex flex-col gap-2">
                   <button
                     onClick={() => handleNavClick('#puntos')}
-                    className="w-full text-left px-4 py-3 text-sm font-semibold text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/10 transition-colors"
+                    className="w-full text-left px-4 py-3 text-sm font-semibold text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/10 transition-colors"
                   >
                     🎯 Consultar Puntos
                   </button>
@@ -192,7 +192,7 @@ export default function Header() {
                   </button>
                   <button
                     onClick={() => handleNavClick('#empresas')}
-                    className="px-4 py-3 text-sm font-semibold text-navy-900 bg-yellow-400 hover:bg-yellow-300 rounded-xl transition-colors"
+                    className="px-4 py-3 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-xl transition-colors"
                   >
                     Contactar
                   </button>
@@ -220,7 +220,7 @@ export default function Header() {
                 placeholder="admin"
                 autoFocus
                 autoComplete="username"
-                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 placeholder:text-slate-600 transition-colors"
+                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 placeholder:text-slate-600 transition-colors"
               />
             </div>
             <div>
@@ -231,7 +231,7 @@ export default function Header() {
                 onChange={e => { setPassword(e.target.value); setLoginError('') }}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 placeholder:text-slate-600 transition-colors"
+                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 placeholder:text-slate-600 transition-colors"
               />
             </div>
           </div>
@@ -254,7 +254,7 @@ export default function Header() {
             disabled={!username || !password || loginLoading}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-3 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loginLoading ? (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

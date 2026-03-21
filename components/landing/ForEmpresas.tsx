@@ -175,7 +175,7 @@ export default function ForEmpresas() {
                   </p>
                   <button
                     onClick={() => setSubmitted(false)}
-                    className="text-sm text-blue-400 hover:text-blue-300 underline"
+                    className="text-sm text-red-400 hover:text-red-300 underline"
                   >
                     Enviar otro mensaje
                   </button>
@@ -216,7 +216,7 @@ export default function ForEmpresas() {
                     <textarea
                       rows={3}
                       placeholder="Cuéntanos sobre tu flota..."
-                      className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 hover:border-white/20 transition-colors resize-none"
+                      className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 hover:border-white/20 transition-colors resize-none"
                       {...register('message')}
                     />
                   </div>
