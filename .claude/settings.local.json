@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx create-next-app@latest webkaizut --typescript --tailwind --eslint --app --no-src-dir --import-alias=\"@/*\" --no-git)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(cp middleware.ts proxy.ts)",
+      "Bash(rm middleware.ts)",
+      "Bash(xargs grep:*)",
+      "Bash(ls /c/Users/angel/Desktop/webkaizut/app/\\\\\\(public\\\\\\))"
+    ]
+  }
+}
