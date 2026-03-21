@@ -60,6 +60,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const [fuelType, setFuelType] = useState('Regular')
   const [redeemFuel, setRedeemFuel] = useState('GLP')
   const [vehicleId, setVehicleId] = useState('')
+  const [plateSearch, setPlateSearch] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [txError, setTxError] = useState('')
 
@@ -77,7 +78,8 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
     if (res.ok) {
       const data = await res.json()
       setCustomer(data.customer)
-      setVehicleId(data.customer.vehicles[0]?.id || '')
+      setVehicleId('')
+      setPlateSearch('')
     }
   }, [])
 
@@ -100,7 +102,8 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
     } else if (res.ok) {
       const data = await res.json()
       setCustomer(data.customer)
-      setVehicleId(data.customer.vehicles[0]?.id || '')
+      setVehicleId('')
+      setPlateSearch('')
       setStep('transaction')
     } else {
       setSearchError('Error al buscar')
@@ -168,9 +171,26 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
     setSubmitting(true)
     setTxError('')
 
+    // Auto-register plate if typed and not yet in customer's vehicles
+    let finalVehicleId = vehicleId
+    const upperPlate = plateSearch.toUpperCase()
+    if (upperPlate.length >= 5 && !customer.vehicles.some(v => v.plate === upperPlate)) {
+      const vRes = await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customer.id, plate: upperPlate }),
+      })
+      if (vRes.ok) {
+        const vData = await vRes.json()
+        finalVehicleId = vData.vehicle.id
+        setCustomer(prev => prev ? { ...prev, vehicles: [...prev.vehicles, vData.vehicle] } : prev)
+        setVehicleId(vData.vehicle.id)
+      }
+    }
+
     const body = txMode === 'compra'
-      ? { type: 'purchase', customer_id: customer.id, vehicle_id: vehicleId || null, amount_soles: parseFloat(amount), fuel_type: fuelType, worker_id: workerId || null }
-      : { type: 'redemption', customer_id: customer.id, vehicle_id: vehicleId || null, fuel_type: redeemFuel, worker_id: workerId || null }
+      ? { type: 'purchase', customer_id: customer.id, vehicle_id: finalVehicleId || null, amount_soles: parseFloat(amount), fuel_type: fuelType, worker_id: workerId || null }
+      : { type: 'redemption', customer_id: customer.id, vehicle_id: finalVehicleId || null, fuel_type: redeemFuel, worker_id: workerId || null }
 
     const res = await fetch('/api/transactions', {
       method: 'POST',
@@ -567,19 +587,48 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                 </>
               )}
 
-              {/* Vehicle selector (both modes) */}
-              {customer.vehicles.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-slate-300 block mb-1">Vehículo (opcional)</label>
-                  <select value={vehicleId} onChange={e => setVehicleId(e.target.value)}
-                    className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors">
-                    <option value="">Sin vehículo específico</option>
-                    {customer.vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.plate}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* Vehicle plate input with autocomplete + auto-register */}
+              {(() => {
+                const upper = plateSearch.toUpperCase()
+                const matches = customer.vehicles.filter(v => upper && v.plate.includes(upper))
+                const selected = customer.vehicles.find(v => v.id === vehicleId)
+                return (
+                  <div>
+                    <label className="text-sm font-medium text-slate-300 block mb-1">Placa (opcional)</label>
+                    <input
+                      type="text"
+                      value={plateSearch}
+                      onChange={e => {
+                        const val = e.target.value.toUpperCase()
+                        setPlateSearch(val)
+                        // Clear selection if user edits the plate
+                        if (selected && val !== selected.plate) setVehicleId('')
+                      }}
+                      placeholder="Ej: ABC-123 o déjalo vacío"
+                      className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-slate-500 transition-colors"
+                    />
+                    {/* Suggestions list */}
+                    {plateSearch && matches.length > 0 && (
+                      <div className="mt-1 rounded-xl border border-white/10 overflow-hidden bg-navy-900/80">
+                        {matches.map(v => (
+                          <button key={v.id} type="button"
+                            onClick={() => { setVehicleId(v.id); setPlateSearch(v.plate) }}
+                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2 ${vehicleId === v.id ? 'bg-blue-600/30 text-blue-300' : 'text-slate-300 hover:bg-white/8'}`}>
+                            🚗 {v.plate}
+                            {vehicleId === v.id && <span className="text-xs text-blue-400 ml-auto">✓ seleccionado</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {plateSearch && upper.length >= 5 && matches.length === 0 && !customer.vehicles.some(v => v.plate === upper) && (
+                      <p className="text-xs text-slate-500 mt-1">Placa nueva — se registrará automáticamente al guardar</p>
+                    )}
+                    {vehicleId && selected && (
+                      <p className="text-xs text-blue-400 mt-1">Placa {selected.plate} seleccionada</p>
+                    )}
+                  </div>
+                )
+              })()}
 
               {txError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{txError}</p>}
 
@@ -642,7 +691,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
               className="flex gap-3">
               <Button variant="secondary" size="md" className="flex-1"
-                onClick={() => { setStep('search'); setCustomer(null); setAmount(''); setDniInput(''); setNameInput(''); setPlateInput(''); setSearchResults([]); setTxMode('compra') }}>
+                onClick={() => { setStep('search'); setCustomer(null); setAmount(''); setDniInput(''); setNameInput(''); setPlateInput(''); setSearchResults([]); setTxMode('compra'); setVehicleId(''); setPlateSearch('') }}>
                 Nueva operación
               </Button>
               <Button variant="ghost" size="md" className="flex-1" onClick={onClose}>

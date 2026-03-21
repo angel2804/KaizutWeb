@@ -33,6 +33,10 @@ export default function SettingsPanel() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [cleaning, setCleaning] = useState(false)
+  const [cleanConfirm, setCleanConfirm] = useState(false)
+  const [cleanSuccess, setCleanSuccess] = useState(false)
+  const [cleanError, setCleanError] = useState('')
 
   useEffect(() => {
     fetch('/api/settings')
@@ -185,6 +189,50 @@ export default function SettingsPanel() {
           Guardar cambios
         </Button>
       </form>
+
+      {/* Developer zone */}
+      <Card padding="md" className="space-y-4 border border-red-500/20">
+        <div>
+          <h3 className="text-sm font-semibold text-red-400">⚠️ Zona de desarrollador</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Limpiar toda la base de datos de clientes, transacciones y vehículos. Los trabajadores y configuraciones se conservan.</p>
+        </div>
+        {cleanSuccess && <p className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">✅ Base de datos limpiada correctamente</p>}
+        {cleanError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{cleanError}</p>}
+        {!cleanConfirm ? (
+          <Button type="button" variant="secondary" size="sm"
+            onClick={() => setCleanConfirm(true)}>
+            🗑️ Limpiar base de datos
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-red-400 font-medium">¿Estás seguro? Esto eliminará todos los clientes, vehículos y transacciones.</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="primary" size="sm" loading={cleaning}
+                onClick={async () => {
+                  setCleaning(true)
+                  setCleanError('')
+                  setCleanSuccess(false)
+                  const res = await fetch('/api/dev/clean', { method: 'POST' })
+                  const d = await res.json()
+                  if (!res.ok) {
+                    setCleanError(d.error || 'Error al limpiar')
+                  } else {
+                    setCleanSuccess(true)
+                    setTimeout(() => setCleanSuccess(false), 4000)
+                  }
+                  setCleanConfirm(false)
+                  setCleaning(false)
+                }}>
+                Sí, limpiar todo
+              </Button>
+              <Button type="button" variant="ghost" size="sm"
+                onClick={() => setCleanConfirm(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   )
 }

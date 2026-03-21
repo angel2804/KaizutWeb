@@ -30,11 +30,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Configuración inválida en el servidor' }, { status: 500 })
     }
 
-    if (username !== correctUser || password !== correctPass) {
+    const devUser = process.env.DEV_USERNAME
+    const devPass = process.env.DEV_PASSWORD
+
+    const isAdmin = username === correctUser && password === correctPass
+    const isDev = devUser && devPass && username === devUser && password === devPass
+
+    if (!isAdmin && !isDev) {
       return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 })
     }
 
-    return makeSession(60 * 60 * 24 * 7) // 7 days for admin
+    return makeSession(60 * 60 * 24 * 7) // 7 days for admin/dev
   }
 
   // ── Path 2: legacy PIN (dashboard/login page fallback) ────────────
