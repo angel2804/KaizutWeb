@@ -12,21 +12,25 @@ const ALLOWED_KEYS = [
 ]
 
 export async function GET() {
-  const supabase = await createServiceClient()
-  const { data, error } = await supabase
-    .from('app_settings')
-    .select('key, value')
+  try {
+    const supabase = await createServiceClient()
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('key, value')
 
-  if (error) {
-    return NextResponse.json({ error: 'Error al obtener configuración' }, { status: 500 })
+    if (error) {
+      return NextResponse.json({})
+    }
+
+    const settings: Record<string, string> = {}
+    for (const row of data ?? []) {
+      settings[row.key] = row.value
+    }
+
+    return NextResponse.json(settings)
+  } catch {
+    return NextResponse.json({})
   }
-
-  const settings: Record<string, string> = {}
-  for (const row of data ?? []) {
-    settings[row.key] = row.value
-  }
-
-  return NextResponse.json(settings)
 }
 
 export async function PUT(request: NextRequest) {
