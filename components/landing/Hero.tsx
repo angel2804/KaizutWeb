@@ -66,16 +66,16 @@ export default function Hero() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-8 ${
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-8 border ${
             pointsEnabled
-              ? 'bg-red-500/10 border border-red-500/20 text-red-400'
-              : 'bg-slate-500/10 border border-slate-500/20 text-slate-400'
+              ? 'bg-red-500/10 border-red-500/20 text-red-400'
+              : 'bg-slate-700/20 border-slate-600/30 text-slate-400'
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${pointsEnabled ? 'bg-red-400 animate-pulse' : 'bg-slate-500'}`} />
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pointsEnabled ? 'bg-red-400 animate-pulse' : 'bg-slate-500'}`} />
           {pointsEnabled
             ? 'Sistema de Puntos activo — Gana recompensas en cada carga'
-            : 'Sistema de Puntos inactivo'}
+            : 'Sistema de Puntos inactivo — Por el momento no se acumulan puntos'}
         </motion.div>
 
         {/* Animated headline */}
