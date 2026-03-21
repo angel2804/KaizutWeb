@@ -400,19 +400,33 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                       const url = URL.createObjectURL(file)
                       img.onload = async () => {
                         const canvas = document.createElement('canvas')
-                        canvas.width = img.width
-                        canvas.height = img.height
                         const ctx = canvas.getContext('2d')
                         if (!ctx) { setSearchError('Error al procesar imagen'); setSearching(false); return }
+                        const jsQR = (await import('jsqr')).default
+
                         // Scale down to max 1024px — jsQR fails on full-res mobile photos
                         const MAX = 1024
                         const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-                        canvas.width = Math.round(img.width * scale)
-                        canvas.height = Math.round(img.height * scale)
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                        const jsQR = (await import('jsqr')).default
-                        const result = jsQR(imageData.data, imageData.width, imageData.height)
+                        const sw = Math.round(img.width * scale)
+                        const sh = Math.round(img.height * scale)
+
+                        // Try all 4 rotations — mobile EXIF causes canvas to receive unrotated image
+                        let result = null
+                        for (const deg of [0, 90, 180, 270]) {
+                          const rad = (deg * Math.PI) / 180
+                          const rotW = deg === 90 || deg === 270 ? sh : sw
+                          const rotH = deg === 90 || deg === 270 ? sw : sh
+                          canvas.width = rotW
+                          canvas.height = rotH
+                          ctx.save()
+                          ctx.translate(rotW / 2, rotH / 2)
+                          ctx.rotate(rad)
+                          ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
+                          ctx.restore()
+                          const imageData = ctx.getImageData(0, 0, rotW, rotH)
+                          result = jsQR(imageData.data, imageData.width, imageData.height)
+                          if (result) break
+                        }
                         URL.revokeObjectURL(url)
                         if (!result) { setSearchError('No se detectó ningún QR. Intenta con mejor iluminación.'); setSearching(false); return }
                         const scannedDni = result.data.replace(/\D/g, '').slice(0, 8)
