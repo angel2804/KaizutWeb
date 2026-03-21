@@ -132,9 +132,6 @@ export default function Services() {
             </motion.div>
           ))}
         </div>
-
-        {/* Points section anchor */}
-        <div id="puntos" className="pt-8" />
       </div>
     </section>
   )

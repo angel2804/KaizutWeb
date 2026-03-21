@@ -8,8 +8,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <Services />
       <PointsChecker />
+      <Services />
       <ForEmpresas />
       <WorkerButton />
     </>
