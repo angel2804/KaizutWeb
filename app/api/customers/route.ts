@@ -5,8 +5,8 @@ import { z } from 'zod'
 const CreateCustomerSchema = z.object({
   dni: z.string().length(8, 'El DNI debe tener 8 dígitos').regex(/^\d+$/, 'Solo números'),
   full_name: z.string().min(3, 'Nombre muy corto'),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
-  phone: z.string().optional(),
+  email: z.string().email('Email inválido').or(z.literal('')).optional().nullable(),
+  phone: z.string().optional().nullable(),
 })
 
 export async function GET(request: NextRequest) {
