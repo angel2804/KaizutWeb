@@ -12,6 +12,7 @@ interface Settings {
   points_premium: string
   points_regular: string
   points_bio: string
+  points_enabled: string
 }
 
 const defaultSettings: Settings = {
@@ -21,6 +22,7 @@ const defaultSettings: Settings = {
   points_premium: '1000',
   points_regular: '1100',
   points_bio: '1200',
+  points_enabled: 'true',
 }
 
 export default function SettingsPanel() {
@@ -49,6 +51,7 @@ export default function SettingsPanel() {
           points_premium: data.points_premium ?? '1000',
           points_regular: data.points_regular ?? '1100',
           points_bio: data.points_bio ?? '1200',
+          points_enabled: data.points_enabled ?? 'true',
         })
         if (data.company_logo_url) setLogoUrl(data.company_logo_url)
       })
@@ -169,6 +172,33 @@ export default function SettingsPanel() {
             onChange={set('whatsapp_number')}
             hint="Ejemplo: 51987654321"
           />
+        </Card>
+
+        {/* Sistema de Puntos toggle */}
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Sistema de Puntos</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {form.points_enabled === 'true'
+                  ? 'Activo — los clientes acumulan puntos en cada carga'
+                  : 'Inactivo — no se acumulan ni canjean puntos'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, points_enabled: f.points_enabled === 'true' ? 'false' : 'true' }))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                form.points_enabled === 'true' ? 'bg-red-600' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                  form.points_enabled === 'true' ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
         </Card>
 
         {/* Puntos de canje */}

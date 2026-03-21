@@ -9,6 +9,7 @@ const ALLOWED_KEYS = [
   'points_premium',
   'points_regular',
   'points_bio',
+  'points_enabled',
 ]
 
 export async function GET() {

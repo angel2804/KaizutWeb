@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { motion, type Variants } from 'framer-motion'
 import Button from '@/components/ui/Button'
 
@@ -31,6 +32,15 @@ const statsData = [
 ]
 
 export default function Hero() {
+  const [pointsEnabled, setPointsEnabled] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => { if (data.points_enabled === 'false') setPointsEnabled(false) })
+      .catch(() => {})
+  }, [])
+
   const scrollTo = (id: string) => {
     document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -56,10 +66,16 @@ export default function Hero() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium mb-8"
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-8 ${
+            pointsEnabled
+              ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+              : 'bg-slate-500/10 border border-slate-500/20 text-slate-400'
+          }`}
         >
-          <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-          Sistema de Puntos activo — Gana recompensas en cada carga
+          <span className={`w-2 h-2 rounded-full ${pointsEnabled ? 'bg-red-400 animate-pulse' : 'bg-slate-500'}`} />
+          {pointsEnabled
+            ? 'Sistema de Puntos activo — Gana recompensas en cada carga'
+            : 'Sistema de Puntos inactivo'}
         </motion.div>
 
         {/* Animated headline */}

@@ -91,15 +91,18 @@ export default function Header() {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:shadow-[0_0_25px_rgba(220,38,38,0.7)] transition-shadow flex-shrink-0">
-              {logoUrl
-                ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
-                : <span>⛽</span>
-              }
-            </div>
-            <span className="font-bold text-lg text-white tracking-tight">
-              {companyName || (<>Kai<span className="text-yellow-400">zut</span></>)}
-            </span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-10 max-w-[140px] object-contain flex-shrink-0" />
+            ) : (
+              <>
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:shadow-[0_0_25px_rgba(220,38,38,0.7)] transition-shadow flex-shrink-0">
+                  <span>⛽</span>
+                </div>
+                <span className="font-bold text-lg text-white tracking-tight">
+                  {companyName || (<>Kai<span className="text-yellow-400">zut</span></>)}
+                </span>
+              </>
+            )}
           </Link>
 
           {/* Desktop nav */}
