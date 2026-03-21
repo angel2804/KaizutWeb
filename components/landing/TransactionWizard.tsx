@@ -404,8 +404,13 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                         canvas.height = img.height
                         const ctx = canvas.getContext('2d')
                         if (!ctx) { setSearchError('Error al procesar imagen'); setSearching(false); return }
-                        ctx.drawImage(img, 0, 0)
-                        const imageData = ctx.getImageData(0, 0, img.width, img.height)
+                        // Scale down to max 1024px — jsQR fails on full-res mobile photos
+                        const MAX = 1024
+                        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+                        canvas.width = Math.round(img.width * scale)
+                        canvas.height = Math.round(img.height * scale)
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
                         const jsQR = (await import('jsqr')).default
                         const result = jsQR(imageData.data, imageData.width, imageData.height)
                         URL.revokeObjectURL(url)
