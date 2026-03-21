@@ -405,47 +405,59 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                           img.src = url
                         })
 
-                        const canvas = document.createElement('canvas')
-                        const ctx = canvas.getContext('2d')
-                        if (!ctx) throw new Error('El navegador no soporta canvas 2D')
+                        let rawData: string | null = null
 
-                        const jsQR = (await import('jsqr')).default
+                        // ── Method 1: native BarcodeDetector (Chrome Android — very accurate) ──
+                        if ('BarcodeDetector' in window) {
+                          try {
+                            type BD = { detect(src: HTMLImageElement): Promise<Array<{ rawValue: string }>> }
+                            const detector = new (window as unknown as { BarcodeDetector: new (o: object) => BD }).BarcodeDetector({ formats: ['qr_code'] })
+                            const codes = await detector.detect(img)
+                            if (codes.length > 0) rawData = codes[0].rawValue
+                          } catch { /* fall through to jsQR */ }
+                        }
 
-                        const MAX = 1024
-                        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-                        const sw = Math.round(img.width * scale)
-                        const sh = Math.round(img.height * scale)
+                        // ── Method 2: jsQR with scale + 4 rotations (fallback) ──────────────
+                        if (!rawData) {
+                          const canvas = document.createElement('canvas')
+                          const ctx = canvas.getContext('2d')
+                          if (!ctx) throw new Error('El navegador no soporta canvas 2D')
+                          const jsQR = (await import('jsqr')).default
 
-                        let result = null
-                        for (const deg of [0, 90, 180, 270]) {
-                          const rad = (deg * Math.PI) / 180
-                          const rotW = deg === 90 || deg === 270 ? sh : sw
-                          const rotH = deg === 90 || deg === 270 ? sw : sh
-                          canvas.width = rotW
-                          canvas.height = rotH
-                          ctx.save()
-                          ctx.translate(rotW / 2, rotH / 2)
-                          ctx.rotate(rad)
-                          ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
-                          ctx.restore()
-                          const imageData = ctx.getImageData(0, 0, rotW, rotH)
-                          result = jsQR(imageData.data, imageData.width, imageData.height)
-                          if (result) break
+                          const MAX = 1024
+                          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+                          const sw = Math.round(img.width * scale)
+                          const sh = Math.round(img.height * scale)
+
+                          for (const deg of [0, 90, 180, 270]) {
+                            const rad = (deg * Math.PI) / 180
+                            const rotW = deg === 90 || deg === 270 ? sh : sw
+                            const rotH = deg === 90 || deg === 270 ? sw : sh
+                            canvas.width = rotW
+                            canvas.height = rotH
+                            ctx.save()
+                            ctx.translate(rotW / 2, rotH / 2)
+                            ctx.rotate(rad)
+                            ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
+                            ctx.restore()
+                            const imageData = ctx.getImageData(0, 0, rotW, rotH)
+                            const r = jsQR(imageData.data, imageData.width, imageData.height)
+                            if (r) { rawData = r.data; break }
+                          }
+
+                          if (!rawData) {
+                            throw new Error(
+                              `QR no detectado (${img.width}×${img.height}px).\n` +
+                              `Consejo: acerca más el celular al QR, asegúrate de que esté bien iluminado y sin reflejos de pantalla.`
+                            )
+                          }
                         }
 
                         URL.revokeObjectURL(url)
 
-                        if (!result) {
-                          throw new Error(
-                            `QR no detectado en imagen ${img.width}×${img.height}px → procesada a ${sw}×${sh}px.\n` +
-                            `Asegúrate de que el QR esté centrado, bien iluminado y sin reflejos.`
-                          )
-                        }
-
-                        const rawData = result.data
-                        const scannedDni = rawData.replace(/\D/g, '').slice(0, 8)
+                        const scannedDni = rawData!.replace(/\D/g, '').slice(0, 8)
                         if (scannedDni.length !== 8) {
-                          throw new Error(`QR leído ("${rawData.slice(0, 30)}") no contiene un DNI de 8 dígitos.`)
+                          throw new Error(`QR leído ("${rawData!.slice(0, 30)}") no contiene un DNI de 8 dígitos.`)
                         }
 
                         setDniInput(scannedDni)
