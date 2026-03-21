@@ -8,7 +8,10 @@
       "Bash(cp middleware.ts proxy.ts)",
       "Bash(rm middleware.ts)",
       "Bash(xargs grep:*)",
-      "Bash(ls /c/Users/angel/Desktop/webkaizut/app/\\\\\\(public\\\\\\))"
+      "Bash(ls /c/Users/angel/Desktop/webkaizut/app/\\\\\\(public\\\\\\))",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

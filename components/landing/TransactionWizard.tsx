@@ -71,6 +71,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError, setCameraError] = useState('')
   const [isMobile, setIsMobile] = useState(false)
+  const [pointsEnabled, setPointsEnabled] = useState(true)
 
   // Success state
   const [pointsEarned, setPointsEarned] = useState(0)
@@ -80,9 +81,13 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
 
   const pointsPreview = Math.floor(parseFloat(amount || '0') * POINTS_PER_SOL)
 
-  // Detect mobile on mount
+  // Detect mobile on mount + fetch points_enabled
   useEffect(() => {
     setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0)
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => { if (data.points_enabled === 'false') setPointsEnabled(false) })
+      .catch(() => {})
   }, [])
 
   // Fetch full customer data
@@ -667,6 +672,22 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
         )}
 
         {/* ── STEP 3: TRANSACTION ────────────────────────────────────── */}
+        {step === 'transaction' && customer && !pointsEnabled && (
+          <motion.div key="blocked"
+            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.25 }} className="py-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-slate-700/30 border border-slate-600/30 flex items-center justify-center text-3xl mx-auto">
+              🔒
+            </div>
+            <div>
+              <h3 className="font-semibold text-white text-lg">Sistema de Puntos inactivo</h3>
+              <p className="text-sm text-slate-400 mt-1">El registro de cargas y canjes está deshabilitado temporalmente.</p>
+            </div>
+            <button onClick={() => setStep('search')} className="text-sm text-slate-400 hover:text-white transition-colors">
+              ← Volver
+            </button>
+          </motion.div>
+        )}
         {step === 'transaction' && customer && (
           <motion.div key="transaction"
             initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}

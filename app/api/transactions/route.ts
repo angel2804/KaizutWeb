@@ -86,6 +86,43 @@ export async function POST(request: NextRequest) {
       .eq('id', data.customer_id)
       .single()
 
+    // Check for suspicious duplicate vehicle transaction within 2 hours
+    if (data.vehicle_id) {
+      try {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+        const { data: prevTx } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('vehicle_id', data.vehicle_id)
+          .eq('type', 'purchase')
+          .gt('created_at', twoHoursAgo)
+          .neq('id', transaction.id)
+          .limit(1)
+          .maybeSingle()
+
+        if (prevTx) {
+          const [vehicleRes, customerRes, workerRes] = await Promise.all([
+            supabase.from('vehicles').select('plate').eq('id', data.vehicle_id).single(),
+            supabase.from('customers').select('full_name').eq('id', data.customer_id).single(),
+            data.worker_id
+              ? supabase.from('workers').select('name').eq('id', data.worker_id).single()
+              : Promise.resolve({ data: null }),
+          ])
+          await supabase.from('transaction_alerts').insert({
+            vehicle_id: data.vehicle_id,
+            vehicle_plate: vehicleRes.data?.plate ?? 'desconocida',
+            customer_id: data.customer_id,
+            customer_name: customerRes.data?.full_name ?? 'desconocido',
+            worker_id: data.worker_id ?? null,
+            worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
+            transaction_id: transaction.id,
+            prev_transaction_id: prevTx.id,
+            amount_soles: data.amount_soles,
+          })
+        }
+      } catch { /* don't fail transaction if alert fails */ }
+    }
+
     return NextResponse.json({
       transaction,
       points_earned: pointsEarned,

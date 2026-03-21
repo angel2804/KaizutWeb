@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CustomerWithVehicles } from '@/lib/supabase'
 import { FuelType } from '@/lib/constants'
@@ -13,10 +13,11 @@ import RedemptionPanel from '@/components/dashboard/RedemptionPanel'
 import WorkerManager from '@/components/dashboard/WorkerManager'
 import SettingsPanel from '@/components/dashboard/SettingsPanel'
 import TransactionHistory from '@/components/dashboard/TransactionHistory'
+import AlertsPanel from '@/components/dashboard/AlertsPanel'
 import Modal from '@/components/ui/Modal'
 
 type ModalType = 'transaction' | 'vehicle' | 'redemption' | 'create'
-type Tab = 'clientes' | 'trabajadores' | 'historial' | 'configuracion'
+type Tab = 'clientes' | 'trabajadores' | 'historial' | 'alertas' | 'configuracion'
 
 interface Toast { id: number; message: string }
 let toastId = 0
@@ -27,6 +28,22 @@ export default function DashboardPage() {
   const [activeModal, setActiveModal] = useState<ModalType | null>(null)
   const [createDni, setCreateDni] = useState('')
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [alertCount, setAlertCount] = useState(0)
+
+  useEffect(() => {
+    const fetchAlertCount = async () => {
+      try {
+        const res = await fetch('/api/alerts')
+        if (res.ok) {
+          const data = await res.json()
+          setAlertCount((data.alerts ?? []).length)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchAlertCount()
+    const interval = setInterval(fetchAlertCount, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const addToast = (message: string) => {
     const id = ++toastId
@@ -39,6 +56,14 @@ export default function DashboardPage() {
     if (res.ok) { const data = await res.json(); setCustomer(data.customer) }
   }, [])
 
+  const tabs: { id: Tab; label: string; badge?: number }[] = [
+    { id: 'clientes', label: '👤 Clientes' },
+    { id: 'trabajadores', label: '👷 Trabajadores' },
+    { id: 'historial', label: '📋 Historial' },
+    { id: 'alertas', label: '🔔 Alertas', badge: alertCount },
+    { id: 'configuracion', label: '⚙️ Config' },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Page title */}
@@ -49,10 +74,15 @@ export default function DashboardPage() {
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-white/5 border border-white/8 w-fit">
-        {(['clientes', 'trabajadores', 'historial', 'configuracion'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-            {t === 'clientes' ? '👤 Clientes' : t === 'trabajadores' ? '👷 Trabajadores' : t === 'historial' ? '📋 Historial' : '⚙️ Config'}
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`relative px-4 py-2 text-sm font-medium rounded-lg transition-colors ${tab === t.id ? 'bg-red-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+            {t.label}
+            {t.badge && t.badge > 0 ? (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {t.badge > 9 ? '9+' : t.badge}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -92,6 +122,14 @@ export default function DashboardPage() {
         {tab === 'historial' && (
           <motion.div key="historial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <TransactionHistory />
+          </motion.div>
+        )}
+
+        {/* ── ALERTAS TAB ─── */}
+        {tab === 'alertas' && (
+          <motion.div key="alertas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onAnimationStart={() => setAlertCount(0)}>
+            <AlertsPanel />
           </motion.div>
         )}
 
