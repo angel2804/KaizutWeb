@@ -396,21 +396,26 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                       if (!file) return
                       setSearching(true)
                       setSearchError('')
-                      const img = new Image()
-                      const url = URL.createObjectURL(file)
-                      img.onload = async () => {
+                      try {
+                        const img = new Image()
+                        const url = URL.createObjectURL(file)
+                        await new Promise<void>((resolve, reject) => {
+                          img.onload = () => resolve()
+                          img.onerror = () => reject(new Error(`No se pudo cargar la imagen (${file.type || 'tipo desconocido'}, ${(file.size / 1024).toFixed(0)} KB)`))
+                          img.src = url
+                        })
+
                         const canvas = document.createElement('canvas')
                         const ctx = canvas.getContext('2d')
-                        if (!ctx) { setSearchError('Error al procesar imagen'); setSearching(false); return }
+                        if (!ctx) throw new Error('El navegador no soporta canvas 2D')
+
                         const jsQR = (await import('jsqr')).default
 
-                        // Scale down to max 1024px — jsQR fails on full-res mobile photos
                         const MAX = 1024
                         const scale = Math.min(1, MAX / Math.max(img.width, img.height))
                         const sw = Math.round(img.width * scale)
                         const sh = Math.round(img.height * scale)
 
-                        // Try all 4 rotations — mobile EXIF causes canvas to receive unrotated image
                         let result = null
                         for (const deg of [0, 90, 180, 270]) {
                           const rad = (deg * Math.PI) / 180
@@ -427,10 +432,22 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                           result = jsQR(imageData.data, imageData.width, imageData.height)
                           if (result) break
                         }
+
                         URL.revokeObjectURL(url)
-                        if (!result) { setSearchError('No se detectó ningún QR. Intenta con mejor iluminación.'); setSearching(false); return }
-                        const scannedDni = result.data.replace(/\D/g, '').slice(0, 8)
-                        if (scannedDni.length !== 8) { setSearchError('QR inválido: no contiene un DNI de 8 dígitos.'); setSearching(false); return }
+
+                        if (!result) {
+                          throw new Error(
+                            `QR no detectado en imagen ${img.width}×${img.height}px → procesada a ${sw}×${sh}px.\n` +
+                            `Asegúrate de que el QR esté centrado, bien iluminado y sin reflejos.`
+                          )
+                        }
+
+                        const rawData = result.data
+                        const scannedDni = rawData.replace(/\D/g, '').slice(0, 8)
+                        if (scannedDni.length !== 8) {
+                          throw new Error(`QR leído ("${rawData.slice(0, 30)}") no contiene un DNI de 8 dígitos.`)
+                        }
+
                         setDniInput(scannedDni)
                         const res = await fetch(`/api/customers?dni=${scannedDni}`)
                         if (res.status === 404) {
@@ -440,19 +457,25 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                         } else if (res.ok) {
                           const data = await res.json()
                           setCustomer(data.customer)
-                          setVehicleId(data.customer.vehicles[0]?.id || '')
+                          setVehicleId('')
+                          setPlateSearch('')
                           setStep('transaction')
                         } else {
-                          setSearchError('Error al buscar cliente')
+                          throw new Error(`Error ${res.status} al buscar cliente con DNI ${scannedDni}`)
                         }
-                        setSearching(false)
+                      } catch (err) {
+                        setSearchError(err instanceof Error ? err.message : 'Error desconocido al procesar el QR')
                       }
-                      img.src = url
+                      setSearching(false)
                     }}
                   />
                 </label>
                 {searching && <p className="text-xs text-slate-500 animate-pulse text-center">Procesando imagen...</p>}
-                {searchError && <p className="text-sm text-red-400 text-center">{searchError}</p>}
+                {searchError && (
+                  <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 whitespace-pre-line">
+                    ❌ {searchError}
+                  </div>
+                )}
               </div>
             )}
 
