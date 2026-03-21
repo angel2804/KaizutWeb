@@ -269,6 +269,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!customer) return
+    if (!pointsEnabled) return
     if (txMode === 'compra' && (!amount || parseFloat(amount) <= 0)) return
     setSubmitting(true)
     setTxError('')
@@ -688,7 +689,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             </button>
           </motion.div>
         )}
-        {step === 'transaction' && customer && (
+        {step === 'transaction' && customer && pointsEnabled && (
           <motion.div key="transaction"
             initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
             transition={{ duration: 0.25 }}>
