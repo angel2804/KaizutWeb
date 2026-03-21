@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CustomerWithVehicles } from '@/lib/supabase'
 import { FUEL_TYPES, POINTS_PER_SOL } from '@/lib/constants'
@@ -64,6 +64,14 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const [submitting, setSubmitting] = useState(false)
   const [txError, setTxError] = useState('')
 
+  // Camera / QR state
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+
   // Success state
   const [pointsEarned, setPointsEarned] = useState(0)
   const [newTotal, setNewTotal] = useState(0)
@@ -71,6 +79,11 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const [successFuel, setSuccessFuel] = useState('')
 
   const pointsPreview = Math.floor(parseFloat(amount || '0') * POINTS_PER_SOL)
+
+  // Detect mobile on mount
+  useEffect(() => {
+    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  }, [])
 
   // Fetch full customer data
   const loadCustomer = useCallback(async (dni: string) => {
@@ -82,6 +95,90 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
       setPlateSearch('')
     }
   }, [])
+
+  // ── CAMERA ────────────────────────────────────────────────────────
+  const stopCamera = useCallback(() => {
+    if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCameraActive(false)
+  }, [])
+
+  const startCamera = useCallback(async () => {
+    setCameraError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      streamRef.current = stream
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
+      setCameraActive(true)
+
+      scanIntervalRef.current = setInterval(async () => {
+        if (!videoRef.current || videoRef.current.readyState < 2) return
+        let rawData: string | null = null
+
+        // Method 1: BarcodeDetector
+        if ('BarcodeDetector' in window) {
+          try {
+            type BD = { detect(src: HTMLVideoElement): Promise<Array<{ rawValue: string }>> }
+            const detector = new (window as unknown as { BarcodeDetector: new (o: object) => BD }).BarcodeDetector({ formats: ['qr_code'] })
+            const codes = await detector.detect(videoRef.current)
+            if (codes.length > 0) rawData = codes[0].rawValue
+          } catch { /* fall through */ }
+        }
+
+        // Method 2: jsQR via canvas
+        if (!rawData) {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          if (ctx && videoRef.current) {
+            canvas.width = videoRef.current.videoWidth
+            canvas.height = videoRef.current.videoHeight
+            ctx.drawImage(videoRef.current, 0, 0)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const jsQR = (await import('jsqr')).default
+            const result = jsQR(imageData.data, imageData.width, imageData.height)
+            if (result) rawData = result.data
+          }
+        }
+
+        if (!rawData) return
+
+        stopCamera()
+        const scannedDni = rawData.replace(/\D/g, '').slice(0, 8)
+        if (scannedDni.length !== 8) {
+          setCameraError(`QR leído ("${rawData.slice(0, 30)}") no contiene un DNI válido.`)
+          return
+        }
+
+        setSearching(true)
+        const res = await fetch(`/api/customers?dni=${scannedDni}`)
+        if (res.status === 404) {
+          setPrefillDni(scannedDni)
+          setRegForm(f => ({ ...f, dni: scannedDni }))
+          setStep('register')
+        } else if (res.ok) {
+          const data = await res.json()
+          setCustomer(data.customer)
+          setVehicleId('')
+          setPlateSearch('')
+          setStep('transaction')
+        } else {
+          setCameraError(`Error ${res.status} al buscar cliente con DNI ${scannedDni}`)
+        }
+        setSearching(false)
+      }, 300)
+    } catch (err) {
+      setCameraError(err instanceof Error ? err.message : 'No se pudo acceder a la cámara')
+    }
+  }, [stopCamera])
+
+  // Stop camera when leaving QR tab or step changes
+  useEffect(() => {
+    if (searchTab !== 'qr' || step !== 'search') stopCamera()
+  }, [searchTab, step, stopCamera])
+
+  // Cleanup on unmount
+  useEffect(() => () => stopCamera(), [stopCamera])
 
   // Select a found customer
   const selectCustomer = (c: CustomerBasic) => {
@@ -382,111 +479,145 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
             {/* QR tab */}
             {searchTab === 'qr' && (
               <div className="space-y-3">
-                <p className="text-xs text-slate-400">Toma una foto del QR del cliente para buscar su DNI automáticamente.</p>
-                <label className="flex flex-col items-center justify-center gap-3 px-4 py-6 rounded-xl border-2 border-dashed border-white/15 hover:border-blue-500/50 cursor-pointer transition-colors bg-white/3 hover:bg-white/5">
-                  <span className="text-3xl">📷</span>
-                  <span className="text-sm text-slate-400">Toca para abrir la cámara</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={async e => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      setSearching(true)
-                      setSearchError('')
-                      try {
-                        const img = new Image()
-                        const url = URL.createObjectURL(file)
-                        await new Promise<void>((resolve, reject) => {
-                          img.onload = () => resolve()
-                          img.onerror = () => reject(new Error(`No se pudo cargar la imagen (${file.type || 'tipo desconocido'}, ${(file.size / 1024).toFixed(0)} KB)`))
-                          img.src = url
-                        })
+                {isMobile ? (
+                  /* ── MOBILE: live camera viewfinder ─────────────────── */
+                  <>
+                    <p className="text-xs text-slate-400">
+                      {cameraActive ? 'Apunta la cámara al QR del cliente — se detectará automáticamente.' : 'Activa la cámara para escanear el QR del cliente.'}
+                    </p>
 
-                        let rawData: string | null = null
+                    {/* Video box */}
+                    <div className="relative rounded-xl overflow-hidden border-2 border-dashed border-white/15 bg-black/40"
+                      style={{ aspectRatio: '4/3' }}>
+                      <video ref={videoRef} playsInline muted
+                        className={`w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`} />
 
-                        // ── Method 1: native BarcodeDetector (Chrome Android — very accurate) ──
-                        if ('BarcodeDetector' in window) {
+                      {!cameraActive && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                          <span className="text-4xl">📷</span>
+                          <span className="text-sm text-slate-400">Cámara apagada</span>
+                        </div>
+                      )}
+
+                      {/* Scanning overlay */}
+                      {cameraActive && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-40 h-40 border-2 border-blue-400/70 rounded-xl relative">
+                            <span className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-blue-400 rounded-tl-lg" />
+                            <span className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-blue-400 rounded-tr-lg" />
+                            <span className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-blue-400 rounded-bl-lg" />
+                            <span className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-blue-400 rounded-br-lg" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {cameraActive ? (
+                      <button onClick={stopCamera}
+                        className="w-full py-2.5 text-sm font-medium rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
+                        Detener cámara
+                      </button>
+                    ) : (
+                      <button onClick={startCamera}
+                        className="w-full py-2.5 text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                        Activar cámara
+                      </button>
+                    )}
+
+                    {searching && <p className="text-xs text-slate-500 animate-pulse text-center">Buscando cliente...</p>}
+                    {cameraError && (
+                      <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 whitespace-pre-line">
+                        ❌ {cameraError}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* ── DESKTOP: file upload (unchanged) ───────────────── */
+                  <>
+                    <p className="text-xs text-slate-400">Sube una imagen del QR del cliente para buscar su DNI automáticamente.</p>
+                    <label className="flex flex-col items-center justify-center gap-3 px-4 py-6 rounded-xl border-2 border-dashed border-white/15 hover:border-blue-500/50 cursor-pointer transition-colors bg-white/3 hover:bg-white/5">
+                      <span className="text-3xl">📁</span>
+                      <span className="text-sm text-slate-400">Haz clic para subir imagen del QR</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setSearching(true)
+                          setSearchError('')
                           try {
-                            type BD = { detect(src: HTMLImageElement): Promise<Array<{ rawValue: string }>> }
-                            const detector = new (window as unknown as { BarcodeDetector: new (o: object) => BD }).BarcodeDetector({ formats: ['qr_code'] })
-                            const codes = await detector.detect(img)
-                            if (codes.length > 0) rawData = codes[0].rawValue
-                          } catch { /* fall through to jsQR */ }
-                        }
+                            const img = new Image()
+                            const url = URL.createObjectURL(file)
+                            await new Promise<void>((resolve, reject) => {
+                              img.onload = () => resolve()
+                              img.onerror = () => reject(new Error(`No se pudo cargar la imagen (${file.type || 'tipo desconocido'}, ${(file.size / 1024).toFixed(0)} KB)`))
+                              img.src = url
+                            })
 
-                        // ── Method 2: jsQR with scale + 4 rotations (fallback) ──────────────
-                        if (!rawData) {
-                          const canvas = document.createElement('canvas')
-                          const ctx = canvas.getContext('2d')
-                          if (!ctx) throw new Error('El navegador no soporta canvas 2D')
-                          const jsQR = (await import('jsqr')).default
+                            let rawData: string | null = null
 
-                          const MAX = 1024
-                          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-                          const sw = Math.round(img.width * scale)
-                          const sh = Math.round(img.height * scale)
+                            if ('BarcodeDetector' in window) {
+                              try {
+                                type BD = { detect(src: HTMLImageElement): Promise<Array<{ rawValue: string }>> }
+                                const detector = new (window as unknown as { BarcodeDetector: new (o: object) => BD }).BarcodeDetector({ formats: ['qr_code'] })
+                                const codes = await detector.detect(img)
+                                if (codes.length > 0) rawData = codes[0].rawValue
+                              } catch { /* fall through */ }
+                            }
 
-                          for (const deg of [0, 90, 180, 270]) {
-                            const rad = (deg * Math.PI) / 180
-                            const rotW = deg === 90 || deg === 270 ? sh : sw
-                            const rotH = deg === 90 || deg === 270 ? sw : sh
-                            canvas.width = rotW
-                            canvas.height = rotH
-                            ctx.save()
-                            ctx.translate(rotW / 2, rotH / 2)
-                            ctx.rotate(rad)
-                            ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh)
-                            ctx.restore()
-                            const imageData = ctx.getImageData(0, 0, rotW, rotH)
-                            const r = jsQR(imageData.data, imageData.width, imageData.height)
-                            if (r) { rawData = r.data; break }
+                            if (!rawData) {
+                              const canvas = document.createElement('canvas')
+                              const ctx = canvas.getContext('2d')
+                              if (!ctx) throw new Error('El navegador no soporta canvas 2D')
+                              const jsQR = (await import('jsqr')).default
+                              const MAX = 1024
+                              const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+                              const sw = Math.round(img.width * scale)
+                              const sh = Math.round(img.height * scale)
+                              for (const deg of [0, 90, 180, 270]) {
+                                const rad = (deg * Math.PI) / 180
+                                const rotW = deg === 90 || deg === 270 ? sh : sw
+                                const rotH = deg === 90 || deg === 270 ? sw : sh
+                                canvas.width = rotW; canvas.height = rotH
+                                ctx.save(); ctx.translate(rotW / 2, rotH / 2); ctx.rotate(rad)
+                                ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh); ctx.restore()
+                                const imageData = ctx.getImageData(0, 0, rotW, rotH)
+                                const r = jsQR(imageData.data, imageData.width, imageData.height)
+                                if (r) { rawData = r.data; break }
+                              }
+                              if (!rawData) throw new Error(`QR no detectado (${img.width}×${img.height}px).\nConsejo: asegúrate de que el QR esté bien iluminado y enfocado.`)
+                            }
+
+                            URL.revokeObjectURL(url)
+                            const scannedDni = rawData!.replace(/\D/g, '').slice(0, 8)
+                            if (scannedDni.length !== 8) throw new Error(`QR leído ("${rawData!.slice(0, 30)}") no contiene un DNI de 8 dígitos.`)
+
+                            setDniInput(scannedDni)
+                            const res = await fetch(`/api/customers?dni=${scannedDni}`)
+                            if (res.status === 404) {
+                              setPrefillDni(scannedDni); setRegForm(f => ({ ...f, dni: scannedDni })); setStep('register')
+                            } else if (res.ok) {
+                              const data = await res.json()
+                              setCustomer(data.customer); setVehicleId(''); setPlateSearch(''); setStep('transaction')
+                            } else {
+                              throw new Error(`Error ${res.status} al buscar cliente con DNI ${scannedDni}`)
+                            }
+                          } catch (err) {
+                            setSearchError(err instanceof Error ? err.message : 'Error desconocido al procesar el QR')
                           }
-
-                          if (!rawData) {
-                            throw new Error(
-                              `QR no detectado (${img.width}×${img.height}px).\n` +
-                              `Consejo: acerca más el celular al QR, asegúrate de que esté bien iluminado y sin reflejos de pantalla.`
-                            )
-                          }
-                        }
-
-                        URL.revokeObjectURL(url)
-
-                        const scannedDni = rawData!.replace(/\D/g, '').slice(0, 8)
-                        if (scannedDni.length !== 8) {
-                          throw new Error(`QR leído ("${rawData!.slice(0, 30)}") no contiene un DNI de 8 dígitos.`)
-                        }
-
-                        setDniInput(scannedDni)
-                        const res = await fetch(`/api/customers?dni=${scannedDni}`)
-                        if (res.status === 404) {
-                          setPrefillDni(scannedDni)
-                          setRegForm(f => ({ ...f, dni: scannedDni }))
-                          setStep('register')
-                        } else if (res.ok) {
-                          const data = await res.json()
-                          setCustomer(data.customer)
-                          setVehicleId('')
-                          setPlateSearch('')
-                          setStep('transaction')
-                        } else {
-                          throw new Error(`Error ${res.status} al buscar cliente con DNI ${scannedDni}`)
-                        }
-                      } catch (err) {
-                        setSearchError(err instanceof Error ? err.message : 'Error desconocido al procesar el QR')
-                      }
-                      setSearching(false)
-                    }}
-                  />
-                </label>
-                {searching && <p className="text-xs text-slate-500 animate-pulse text-center">Procesando imagen...</p>}
-                {searchError && (
-                  <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 whitespace-pre-line">
-                    ❌ {searchError}
-                  </div>
+                          setSearching(false)
+                        }}
+                      />
+                    </label>
+                    {searching && <p className="text-xs text-slate-500 animate-pulse text-center">Procesando imagen...</p>}
+                    {searchError && (
+                      <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 whitespace-pre-line">
+                        ❌ {searchError}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
