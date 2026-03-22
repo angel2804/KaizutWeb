@@ -38,6 +38,7 @@ export default function AlertsPanel() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
   const [marking, setMarking] = useState(false)
+  const [photoLoading, setPhotoLoading] = useState<string | null>(null)
 
   const fetchAlerts = useCallback(async () => {
     const res = await fetch('/api/alerts')
@@ -98,9 +99,23 @@ export default function AlertsPanel() {
         <div className="space-y-3">
           {alerts.map(alert => {
             const m = alertMeta(alert.alert_type)
-            const photoUrl = alert.alert_type === 'pin_self_reset' && alert.reason?.startsWith('Foto DNI:')
+            const storedPhotoUrl = alert.alert_type === 'pin_self_reset' && alert.reason?.startsWith('Foto DNI:')
               ? alert.reason.replace('Foto DNI: ', '')
               : null
+            const photoFilename = storedPhotoUrl
+              ? storedPhotoUrl.split('/').pop() ?? null
+              : null
+            const openPhoto = async () => {
+              if (!photoFilename) return
+              setPhotoLoading(alert.id)
+              try {
+                const res = await fetch(`/api/storage/photo?file=${encodeURIComponent(photoFilename)}`)
+                const d = await res.json()
+                if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer')
+              } finally {
+                setPhotoLoading(null)
+              }
+            }
             return (
               <Card key={alert.id} padding="md" className={`border ${m.border} ${m.bg}`}>
                 <div className="flex items-start justify-between gap-4">
@@ -120,10 +135,13 @@ export default function AlertsPanel() {
                       )}
                       <p>🕐 Fecha: <span className={m.text}>{formatDateTime(alert.created_at)}</span></p>
                     </div>
-                    {photoUrl ? (
+                    {photoFilename ? (
                       <div className="text-xs bg-white/5 px-3 py-2 rounded-lg">
-                        📷 <a href={photoUrl} target="_blank" rel="noopener noreferrer"
-                          className="underline text-purple-300 hover:text-purple-200">Ver foto DNI del cliente</a>
+                        📷{' '}
+                        <button onClick={openPhoto} disabled={photoLoading === alert.id}
+                          className="underline text-purple-300 hover:text-purple-200 disabled:opacity-50">
+                          {photoLoading === alert.id ? 'Cargando...' : 'Ver foto DNI del cliente'}
+                        </button>
                       </div>
                     ) : alert.reason && (
                       <div className="text-xs text-slate-300 bg-white/5 px-3 py-2 rounded-lg">
