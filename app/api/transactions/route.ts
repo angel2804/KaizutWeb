@@ -129,6 +129,14 @@ export async function POST(request: NextRequest) {
   if (data.type === 'purchase') {
     const pointsEarned = Math.floor(data.amount_soles * POINTS_PER_SOL)
 
+    // Validate worker_id exists to avoid FK violation (stale client session)
+    let validWorkerId: string | null = data.worker_id ?? null
+    if (validWorkerId) {
+      const { data: workerCheck } = await supabase
+        .from('workers').select('id').eq('id', validWorkerId).maybeSingle()
+      if (!workerCheck) validWorkerId = null
+    }
+
     const { data: transaction, error } = await supabase
       .from('transactions')
       .insert({
@@ -138,7 +146,7 @@ export async function POST(request: NextRequest) {
         points_earned: pointsEarned,
         type: 'purchase',
         fuel_type: data.fuel_type,
-        worker_id: data.worker_id ?? null,
+        worker_id: validWorkerId,
         notes: null,
       })
       .select()
@@ -283,6 +291,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Validate worker_id exists to avoid FK violation
+  let validWorkerIdR: string | null = data.worker_id ?? null
+  if (validWorkerIdR) {
+    const { data: workerCheck } = await supabase
+      .from('workers').select('id').eq('id', validWorkerIdR).maybeSingle()
+    if (!workerCheck) validWorkerIdR = null
+  }
+
   const { data: transaction, error } = await supabase
     .from('transactions')
     .insert({
@@ -292,7 +308,7 @@ export async function POST(request: NextRequest) {
       points_earned: -pointsRequired,
       type: 'redemption',
       fuel_type: data.fuel_type,
-      worker_id: data.worker_id ?? null,
+      worker_id: validWorkerIdR,
       notes: null,
     })
     .select()
