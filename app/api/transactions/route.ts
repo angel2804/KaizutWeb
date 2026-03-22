@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
             vehicle_plate: vehicleRes.data?.plate ?? 'desconocida',
             customer_id: data.customer_id,
             customer_name: customerRes.data?.full_name ?? 'desconocido',
-            worker_id: data.worker_id ?? null,
+            worker_id: validWorkerId,
             worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
             amount_soles: data.amount_soles,
             alert_type: 'duplicate_vehicle',
@@ -205,6 +205,9 @@ export async function POST(request: NextRequest) {
         .select('value')
         .eq('key', 'suspicious_amount_threshold')
         .maybeSingle()
+      if (!thresholdSetting) {
+        await supabase.from('app_settings').upsert({ key: 'suspicious_amount_threshold', value: '500' })
+      }
       const threshold = parseInt(thresholdSetting?.value ?? '500', 10)
 
       if (data.amount_soles >= threshold) {
@@ -217,7 +220,7 @@ export async function POST(request: NextRequest) {
         await supabase.from('transaction_alerts').insert({
           customer_id: data.customer_id,
           customer_name: customerRes.data?.full_name ?? 'desconocido',
-          worker_id: data.worker_id ?? null,
+          worker_id: validWorkerId,
           worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
           amount_soles: data.amount_soles,
           alert_type: 'high_amount',

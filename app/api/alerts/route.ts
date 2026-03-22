@@ -5,14 +5,24 @@ import { cookies } from 'next/headers'
 export async function GET() {
   try {
     const supabase = await createServiceClient()
-    const { data, error } = await supabase
+    // Try with read_at filter first; fall back to all alerts if column doesn't exist
+    let { data, error } = await supabase
       .from('transaction_alerts')
       .select('*')
       .is('read_at', null)
       .order('created_at', { ascending: false })
       .limit(50)
 
-    if (error) return NextResponse.json({ alerts: [] })
+    if (error) {
+      // read_at column may not exist — fetch all alerts
+      const fallback = await supabase
+        .from('transaction_alerts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      data = fallback.data
+    }
+
     return NextResponse.json({ alerts: data ?? [] })
   } catch {
     return NextResponse.json({ alerts: [] })

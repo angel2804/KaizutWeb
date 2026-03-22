@@ -33,6 +33,9 @@ export default function DashboardPage() {
   const [alertCount, setAlertCount] = useState(0)
 
   useEffect(() => {
+    // Silent cleanup of old DNI photos and alerts
+    fetch('/api/cleanup', { method: 'POST' }).catch(() => {})
+
     const fetchAlertCount = async () => {
       try {
         const res = await fetch('/api/alerts')

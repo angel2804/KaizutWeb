@@ -5,16 +5,19 @@ import { motion } from 'framer-motion'
 
 interface TxRow {
   id: string
-  type: 'purchase' | 'redemption'
+  type: 'purchase' | 'redemption' | 'annulment'
   fuel_type: string
   amount_soles: number
   points_earned: number
+  notes: string | null
   created_at: string
   customers: { full_name: string; dni: string } | null
   workers: { name: string } | null
 }
 
 type Filter = 'all' | 'purchase' | 'redemption'
+
+const PAGE_SIZE = 20
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -26,6 +29,7 @@ export default function TransactionHistory() {
   const [transactions, setTransactions] = useState<TxRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('all')
+  const [page, setPage] = useState(1)
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true)
@@ -39,12 +43,17 @@ export default function TransactionHistory() {
 
   useEffect(() => { fetchTransactions() }, [fetchTransactions])
 
+  // Reset to page 1 when filter changes
+  useEffect(() => { setPage(1) }, [filter])
+
   const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter)
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const totalPurchases = transactions.filter(t => t.type === 'purchase').length
   const totalRedemptions = transactions.filter(t => t.type === 'redemption').length
   const totalPointsIssued = transactions.filter(t => t.type === 'purchase').reduce((s, t) => s + t.points_earned, 0)
-  const totalPointsRedeemed = transactions.filter(t => t.type === 'redemption').reduce((s, t) => s + t.points_earned, 0)
+  const totalPointsRedeemed = transactions.filter(t => t.type === 'redemption').reduce((s, t) => s + Math.abs(t.points_earned), 0)
 
   return (
     <div className="space-y-6">
@@ -96,51 +105,92 @@ export default function TransactionHistory() {
           <p className="text-slate-500">No hay transacciones registradas aún.</p>
         </div>
       ) : (
-        <div className="space-y-1.5 max-h-[600px] overflow-y-auto pr-1">
-          {filtered.map((tx, i) => (
-            <motion.div
-              key={tx.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.02 }}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/5 transition-colors"
-            >
-              {/* Type icon */}
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${
-                tx.type === 'purchase'
-                  ? 'bg-blue-500/10 border border-blue-500/20'
+        <>
+          <div className="space-y-1.5">
+            {paginated.map((tx, i) => (
+              <motion.div
+                key={tx.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.02 }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/5 transition-colors"
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${
+                  tx.type === 'purchase' ? 'bg-blue-500/10 border border-blue-500/20'
+                  : tx.type === 'annulment' ? 'bg-red-500/10 border border-red-500/20'
                   : 'bg-green-500/10 border border-green-500/20'
-              }`}>
-                {tx.type === 'purchase' ? '⛽' : '🎁'}
-              </div>
+                }`}>
+                  {tx.type === 'purchase' ? '⛽' : tx.type === 'annulment' ? '✂️' : '🎁'}
+                </div>
 
-              {/* Customer */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {tx.customers?.full_name ?? '—'}
-                  <span className="text-slate-500 font-normal text-xs ml-1.5">DNI {tx.customers?.dni}</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  {tx.type === 'purchase' ? `Carga ${tx.fuel_type} · S/ ${tx.amount_soles.toFixed(2)}` : `Canje ${tx.fuel_type}`}
-                  {tx.workers?.name && <span className="ml-1.5">· <span className="text-slate-400">{tx.workers.name}</span></span>}
-                </p>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">
+                    {tx.customers?.full_name ?? '—'}
+                    <span className="text-slate-500 font-normal text-xs ml-1.5">DNI {tx.customers?.dni}</span>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {tx.type === 'purchase' ? `Carga ${tx.fuel_type} · S/ ${tx.amount_soles.toFixed(2)}`
+                    : tx.type === 'annulment' ? `Anulación ${tx.fuel_type}${tx.notes ? ` · ${tx.notes}` : ''}`
+                    : `Canje ${tx.fuel_type}`}
+                    {tx.workers?.name && <span className="ml-1.5">· <span className="text-slate-400">{tx.workers.name}</span></span>}
+                  </p>
+                </div>
 
-              {/* Date */}
-              <div className="text-right flex-shrink-0 hidden sm:block">
-                <p className="text-xs text-slate-400">{formatDate(tx.created_at)}</p>
-              </div>
+                <div className="text-right flex-shrink-0 hidden sm:block">
+                  <p className="text-xs text-slate-400">{formatDate(tx.created_at)}</p>
+                </div>
 
-              {/* Points */}
-              <div className="text-right flex-shrink-0 w-20">
-                <p className={`text-sm font-bold ${tx.type === 'purchase' ? 'text-yellow-400' : 'text-green-400'}`}>
-                  {tx.type === 'purchase' ? '+' : '-'}{tx.points_earned.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-500">pts</p>
+                <div className="text-right flex-shrink-0 w-20">
+                  <p className={`text-sm font-bold ${
+                    tx.points_earned > 0 ? 'text-yellow-400'
+                    : tx.type === 'annulment' ? 'text-red-400'
+                    : 'text-green-400'
+                  }`}>
+                    {tx.points_earned > 0 ? '+' : ''}{tx.points_earned.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-slate-500">pts</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-slate-500">
+                {filtered.length} registros · página {page} de {totalPages}
+              </p>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Anterior
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+                  const n = start + i
+                  return n <= totalPages ? (
+                    <button key={n} onClick={() => setPage(n)}
+                      className={`w-8 h-8 text-xs rounded-lg border transition-colors ${
+                        n === page ? 'bg-blue-600 border-blue-600 text-white' : 'border-white/10 text-slate-400 hover:text-white'
+                      }`}>
+                      {n}
+                    </button>
+                  ) : null
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente →
+                </button>
               </div>
-            </motion.div>
-          ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
