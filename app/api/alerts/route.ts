@@ -40,8 +40,38 @@ export async function PUT(request: NextRequest) {
   const supabase = await createServiceClient()
 
   if (body.id) {
+    // Fetch the alert first to check for a DNI photo
+    const { data: alert } = await supabase
+      .from('transaction_alerts')
+      .select('alert_type, reason')
+      .eq('id', body.id)
+      .maybeSingle()
+
+    if (alert?.alert_type === 'pin_self_reset' && alert.reason?.startsWith('Foto DNI:')) {
+      const storedUrl = alert.reason.replace('Foto DNI: ', '')
+      const filename = storedUrl.split('/').pop()
+      if (filename) {
+        await supabase.storage.from('dni-photos').remove([filename])
+      }
+    }
+
     await supabase.from('transaction_alerts').update({ read_at: new Date().toISOString() }).eq('id', body.id)
   } else {
+    // Mark all as read — also delete any DNI photos from unread pin_self_reset alerts
+    const { data: unread } = await supabase
+      .from('transaction_alerts')
+      .select('alert_type, reason')
+      .is('read_at', null)
+
+    const filenames = (unread ?? [])
+      .filter(a => a.alert_type === 'pin_self_reset' && a.reason?.startsWith('Foto DNI:'))
+      .map(a => (a.reason as string).replace('Foto DNI: ', '').split('/').pop())
+      .filter((f): f is string => !!f)
+
+    if (filenames.length > 0) {
+      await supabase.storage.from('dni-photos').remove(filenames)
+    }
+
     await supabase.from('transaction_alerts').update({ read_at: new Date().toISOString() }).is('read_at', null)
   }
 
