@@ -178,14 +178,11 @@ export async function POST(request: NextRequest) {
               : Promise.resolve({ data: null }),
           ])
           await supabase.from('transaction_alerts').insert({
-            vehicle_id: data.vehicle_id,
             vehicle_plate: vehicleRes.data?.plate ?? 'desconocida',
             customer_id: data.customer_id,
             customer_name: customerRes.data?.full_name ?? 'desconocido',
             worker_id: data.worker_id ?? null,
             worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
-            transaction_id: transaction.id,
-            prev_transaction_id: prevTx.id,
             amount_soles: data.amount_soles,
             alert_type: 'duplicate_vehicle',
           })
@@ -210,14 +207,10 @@ export async function POST(request: NextRequest) {
             : Promise.resolve({ data: null }),
         ])
         await supabase.from('transaction_alerts').insert({
-          vehicle_id: data.vehicle_id ?? null,
-          vehicle_plate: null,
           customer_id: data.customer_id,
           customer_name: customerRes.data?.full_name ?? 'desconocido',
           worker_id: data.worker_id ?? null,
           worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
-          transaction_id: transaction.id,
-          prev_transaction_id: null,
           amount_soles: data.amount_soles,
           alert_type: 'high_amount',
         })

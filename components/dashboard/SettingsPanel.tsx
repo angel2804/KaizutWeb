@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Card from '@/components/ui/Card'
@@ -39,6 +39,22 @@ export default function SettingsPanel() {
   const [cleanConfirm, setCleanConfirm] = useState(false)
   const [cleanSuccess, setCleanSuccess] = useState(false)
   const [cleanError, setCleanError] = useState('')
+
+  // Backup state
+  const [backupLoading, setBackupLoading] = useState(false)
+  const [restoreLoading, setRestoreLoading] = useState(false)
+  const [restoreMsg, setRestoreMsg] = useState('')
+  const [restoreError, setRestoreError] = useState('')
+  const backupFileRef = useRef<HTMLInputElement>(null)
+
+  // Reset state (password protected)
+  const [resetUnlocked, setResetUnlocked] = useState(false)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetPasswordError, setResetPasswordError] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState(false)
+  const [resetMsg, setResetMsg] = useState('')
+  const [resetError, setResetError] = useState('')
 
   useEffect(() => {
     fetch('/api/settings')
@@ -98,6 +114,70 @@ export default function SettingsPanel() {
 
   const set = (key: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }))
+
+  const downloadBackup = useCallback(async () => {
+    setBackupLoading(true)
+    const res = await fetch('/api/backup')
+    if (res.ok) {
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `backup-kaizut-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      localStorage.setItem('lastBackupDate', new Date().toISOString().slice(0, 10))
+    }
+    setBackupLoading(false)
+  }, [])
+
+  // Auto-backup: trigger download once per day when admin opens settings
+  useEffect(() => {
+    const last = localStorage.getItem('lastBackupDate')
+    const today = new Date().toISOString().slice(0, 10)
+    if (last !== today) {
+      const timer = setTimeout(() => downloadBackup(), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [downloadBackup])
+
+  const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setRestoreLoading(true)
+    setRestoreMsg('')
+    setRestoreError('')
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore', backup }),
+      })
+      const d = await res.json()
+      if (!res.ok) { setRestoreError(d.error || 'Error al restaurar'); }
+      else { setRestoreMsg(`✅ Restaurado: ${d.restored.customers} clientes, ${d.restored.transactions} transacciones`) }
+    } catch { setRestoreError('Archivo inválido') }
+    setRestoreLoading(false)
+    if (backupFileRef.current) backupFileRef.current.value = ''
+  }
+
+  const handleReset = async () => {
+    setResetting(true)
+    setResetError('')
+    setResetMsg('')
+    const res = await fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset', password: 'angelccasa284' }),
+    })
+    const d = await res.json()
+    if (!res.ok) { setResetError(d.error || 'Error al resetear') }
+    else { setResetMsg('✅ Base de datos limpiada. Los trabajadores se conservaron.') }
+    setResetting(false)
+    setResetConfirm(false)
+  }
 
   if (loading) {
     return (
@@ -220,46 +300,76 @@ export default function SettingsPanel() {
         </Button>
       </form>
 
-      {/* Developer zone */}
+      {/* Backup & Restore */}
+      <Card padding="md" className="space-y-4 border border-blue-500/20">
+        <div>
+          <h3 className="text-sm font-semibold text-blue-300">💾 Backup de datos</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Se descarga automáticamente una vez al día cuando abres esta pantalla. También puedes hacerlo manualmente o restaurar un backup anterior.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" loading={backupLoading} onClick={downloadBackup}>
+            ⬇️ Descargar backup ahora
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => backupFileRef.current?.click()} loading={restoreLoading}>
+            ⬆️ Restaurar backup
+          </Button>
+          <input ref={backupFileRef} type="file" accept=".json" className="hidden" onChange={handleRestoreFile} />
+        </div>
+        {restoreMsg && <p className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">{restoreMsg}</p>}
+        {restoreError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{restoreError}</p>}
+      </Card>
+
+      {/* Reset for new buyer — password protected */}
       <Card padding="md" className="space-y-4 border border-red-500/20">
         <div>
-          <h3 className="text-sm font-semibold text-red-400">⚠️ Zona de desarrollador</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Limpiar toda la base de datos de clientes, transacciones y vehículos. Los trabajadores y configuraciones se conservan.</p>
+          <h3 className="text-sm font-semibold text-red-400">🔐 Entregar sistema limpio</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Elimina clientes, transacciones, vehículos y alertas. Los trabajadores y configuraciones se conservan. Requiere contraseña.</p>
         </div>
-        {cleanSuccess && <p className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">✅ Base de datos limpiada correctamente</p>}
-        {cleanError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{cleanError}</p>}
-        {!cleanConfirm ? (
-          <Button type="button" variant="secondary" size="sm"
-            onClick={() => setCleanConfirm(true)}>
-            🗑️ Limpiar base de datos
-          </Button>
-        ) : (
+
+        {!resetUnlocked ? (
           <div className="space-y-2">
-            <p className="text-sm text-red-400 font-medium">¿Estás seguro? Esto eliminará todos los clientes, vehículos y transacciones.</p>
-            <div className="flex gap-2">
-              <Button type="button" variant="primary" size="sm" loading={cleaning}
-                onClick={async () => {
-                  setCleaning(true)
-                  setCleanError('')
-                  setCleanSuccess(false)
-                  const res = await fetch('/api/dev/clean', { method: 'POST' })
-                  const d = await res.json()
-                  if (!res.ok) {
-                    setCleanError(d.error || 'Error al limpiar')
-                  } else {
-                    setCleanSuccess(true)
-                    setTimeout(() => setCleanSuccess(false), 4000)
-                  }
-                  setCleanConfirm(false)
-                  setCleaning(false)
-                }}>
-                Sí, limpiar todo
-              </Button>
-              <Button type="button" variant="ghost" size="sm"
-                onClick={() => setCleanConfirm(false)}>
-                Cancelar
-              </Button>
-            </div>
+            <input
+              type="password"
+              value={resetPassword}
+              onChange={e => { setResetPassword(e.target.value); setResetPasswordError('') }}
+              placeholder="Contraseña de entrega"
+              className="w-full rounded-xl px-4 py-2.5 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-slate-500"
+            />
+            {resetPasswordError && <p className="text-xs text-red-400">{resetPasswordError}</p>}
+            <Button type="button" variant="secondary" size="sm" onClick={() => {
+              if (resetPassword === 'angelccasa284') { setResetUnlocked(true); setResetPassword('') }
+              else { setResetPasswordError('Contraseña incorrecta') }
+            }}>
+              Desbloquear
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-amber-400 font-medium">⚠️ Sección desbloqueada. Esta acción no se puede deshacer.</p>
+            {resetMsg && <p className="text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">{resetMsg}</p>}
+            {resetError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{resetError}</p>}
+            {!resetConfirm ? (
+              <div className="flex gap-2">
+                <Button type="button" variant="primary" size="sm" onClick={() => setResetConfirm(true)}>
+                  🗑️ Resetear base de datos
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setResetUnlocked(false)}>
+                  Cerrar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-red-400 font-medium">¿Confirmas? Se eliminarán todos los clientes, transacciones y vehículos.</p>
+                <div className="flex gap-2">
+                  <Button type="button" variant="primary" size="sm" loading={resetting} onClick={handleReset}>
+                    Sí, resetear todo
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setResetConfirm(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>
