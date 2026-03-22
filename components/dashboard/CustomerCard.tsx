@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { CustomerWithVehicles } from '@/lib/supabase'
 import { REDEMPTION_GOALS } from '@/lib/constants'
@@ -7,7 +8,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 
-type ModalType = 'transaction' | 'vehicle' | 'redemption'
+type ModalType = 'transaction' | 'vehicle' | 'redemption' | 'set-pin' | 'annul-points'
 
 interface CustomerCardProps {
   customer: CustomerWithVehicles
@@ -15,8 +16,18 @@ interface CustomerCardProps {
 }
 
 export default function CustomerCard({ customer, onAction }: CustomerCardProps) {
+  const [showPin, setShowPin] = useState(false)
+  // glp_points / liquid_points may be present from the API
+  const glpPoints = (customer as typeof customer & { glp_points?: number }).glp_points ?? 0
+  const liquidPoints = (customer as typeof customer & { liquid_points?: number }).liquid_points ?? 0
   const nextGoal = REDEMPTION_GOALS.find((g) => g.pointsRequired > customer.total_points)
-  const canRedeem = REDEMPTION_GOALS.some((g) => g.pointsRequired <= customer.total_points)
+  const canRedeem = REDEMPTION_GOALS.some((g) => {
+    const pts = g.fuelType === 'GLP' ? glpPoints : liquidPoints
+    return pts >= g.pointsRequired
+  })
+
+  // pin is only present for admin sessions
+  const plainPin = (customer as typeof customer & { pin?: string }).pin
 
   return (
     <motion.div
@@ -43,11 +54,15 @@ export default function CustomerCard({ customer, onAction }: CustomerCardProps) 
           </div>
 
           {/* Points */}
-          <div className="text-right">
-            <div className="text-3xl font-bold text-yellow-400">
-              {customer.total_points.toLocaleString()}
+          <div className="text-right space-y-1">
+            <div>
+              <span className="text-xl font-bold text-blue-300">{glpPoints.toLocaleString()}</span>
+              <span className="text-xs text-slate-500 ml-1">GLP</span>
             </div>
-            <div className="text-xs text-slate-400 mt-0.5">puntos acumulados</div>
+            <div>
+              <span className="text-xl font-bold text-yellow-400">{liquidPoints.toLocaleString()}</span>
+              <span className="text-xs text-slate-500 ml-1">líq.</span>
+            </div>
           </div>
         </div>
 
@@ -79,6 +94,48 @@ export default function CustomerCard({ customer, onAction }: CustomerCardProps) 
             <span className="text-sm text-green-400 font-medium">
               ¡Este cliente puede canjear puntos por galones gratis!
             </span>
+          </div>
+        )}
+
+        {/* PIN status */}
+        {!customer.has_pin ? (
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 text-base">⚠️</span>
+              <span className="text-sm text-amber-300">Cliente sin PIN — canjes sin verificación</span>
+            </div>
+            <button
+              onClick={() => onAction('set-pin')}
+              className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors underline"
+            >
+              Configurar PIN
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-green-500/8 border border-green-500/15">
+            <div className="flex items-center gap-2">
+              <span className="text-green-400 text-base">🔒</span>
+              <span className="text-sm text-green-300">PIN configurado</span>
+              {plainPin && (
+                <span className="text-sm font-mono text-white ml-1">
+                  {showPin ? plainPin : '●'.repeat(plainPin.length)}
+                </span>
+              )}
+              {plainPin && (
+                <button
+                  onClick={() => setShowPin(s => !s)}
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors ml-1"
+                >
+                  {showPin ? 'Ocultar' : 'Ver'}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => onAction('set-pin')}
+              className="text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            >
+              Cambiar / Resetear
+            </button>
           </div>
         )}
 
@@ -115,6 +172,9 @@ export default function CustomerCard({ customer, onAction }: CustomerCardProps) 
             onClick={() => onAction('redemption')}
           >
             🎁 Canjear Puntos
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => onAction('annul-points')}>
+            ✂️ Anular Puntos
           </Button>
         </div>
       </Card>

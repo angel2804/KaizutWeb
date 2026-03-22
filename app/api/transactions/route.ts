@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase-server'
 import { REDEMPTION_GOALS, POINTS_PER_SOL } from '@/lib/constants'
 import { z } from 'zod'
+import { checkRateLimit, recordFailure, resetAttempts } from '@/lib/pin-rate-limit'
+import { cookies } from 'next/headers'
 
 const PurchaseSchema = z.object({
   type: z.literal('purchase'),
@@ -18,9 +20,21 @@ const RedemptionSchema = z.object({
   vehicle_id: z.string().uuid().optional().nullable(),
   fuel_type: z.enum(['GLP', 'Premium', 'Regular', 'Bio']),
   worker_id: z.string().uuid().optional().nullable(),
+  pin: z.string().optional(),
 })
 
-const TransactionSchema = z.discriminatedUnion('type', [PurchaseSchema, RedemptionSchema])
+const AnnulmentSchema = z.object({
+  type: z.literal('annulment'),
+  customer_id: z.string().uuid(),
+  fuel_type: z.enum(['GLP', 'Premium', 'Regular', 'Bio']),
+  points_to_remove: z.number().int().positive(),
+  notes: z.string().min(1, 'El motivo es obligatorio'),
+})
+
+const TransactionSchema = z.discriminatedUnion('type', [PurchaseSchema, RedemptionSchema, AnnulmentSchema])
+
+const GLP_FUELS = ['GLP'] as const
+const LIQUID_FUELS = ['Premium', 'Regular', 'Bio'] as const
 
 // GET: list transactions
 // ?customer_id=UUID  → customer history (last 50)
@@ -32,7 +46,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('transactions')
-    .select('id, type, fuel_type, amount_soles, points_earned, created_at, customer_id, worker_id, customers(full_name, dni), workers(name)')
+    .select('id, type, fuel_type, amount_soles, points_earned, notes, created_at, customer_id, worker_id, customers(full_name, dni), workers(name)')
     .order('created_at', { ascending: false })
 
   if (customerId) {
@@ -58,6 +72,60 @@ export async function POST(request: NextRequest) {
   const supabase = await createServiceClient()
   const data = parsed.data
 
+  // ─── ANNULMENT (admin only) ───────────────────────────────────────────────
+  if (data.type === 'annulment') {
+    const cookieStore = await cookies()
+    const session = cookieStore.get('worker_session')
+    if (session?.value !== 'authenticated') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Verify customer has enough points in the requested pool
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('glp_points, liquid_points, full_name')
+      .eq('id', data.customer_id)
+      .single() as { data: { glp_points: number; liquid_points: number; full_name: string } | null }
+
+    if (!cust) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+
+    const isGlp = (GLP_FUELS as readonly string[]).includes(data.fuel_type)
+    const availablePool = isGlp ? cust.glp_points : cust.liquid_points
+
+    if (availablePool < data.points_to_remove) {
+      return NextResponse.json(
+        { error: `Puntos insuficientes en ese pool. Disponible: ${availablePool}` },
+        { status: 422 }
+      )
+    }
+
+    const { data: transaction, error } = await supabase
+      .from('transactions')
+      .insert({
+        customer_id: data.customer_id,
+        vehicle_id: null,
+        amount_soles: 0,
+        points_earned: -data.points_to_remove,
+        type: 'annulment',
+        fuel_type: data.fuel_type,
+        notes: data.notes,
+        worker_id: null,
+      })
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Error al anular puntos' }, { status: 500 })
+
+    const { data: updated } = await supabase
+      .from('customers')
+      .select('total_points, glp_points, liquid_points')
+      .eq('id', data.customer_id)
+      .single()
+
+    return NextResponse.json({ transaction, points_removed: data.points_to_remove, customer: updated }, { status: 201 })
+  }
+
+  // ─── PURCHASE ─────────────────────────────────────────────────────────────
   if (data.type === 'purchase') {
     const pointsEarned = Math.floor(data.amount_soles * POINTS_PER_SOL)
 
@@ -71,6 +139,7 @@ export async function POST(request: NextRequest) {
         type: 'purchase',
         fuel_type: data.fuel_type,
         worker_id: data.worker_id ?? null,
+        notes: null,
       })
       .select()
       .single()
@@ -82,7 +151,7 @@ export async function POST(request: NextRequest) {
     // Fetch updated customer points
     const { data: customer } = await supabase
       .from('customers')
-      .select('total_points')
+      .select('total_points, glp_points, liquid_points')
       .eq('id', data.customer_id)
       .single()
 
@@ -118,19 +187,53 @@ export async function POST(request: NextRequest) {
             transaction_id: transaction.id,
             prev_transaction_id: prevTx.id,
             amount_soles: data.amount_soles,
+            alert_type: 'duplicate_vehicle',
           })
         }
       } catch { /* don't fail transaction if alert fails */ }
     }
 
+    // Check for suspiciously high amount
+    try {
+      const { data: thresholdSetting } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'suspicious_amount_threshold')
+        .maybeSingle()
+      const threshold = parseInt(thresholdSetting?.value ?? '500', 10)
+
+      if (data.amount_soles >= threshold) {
+        const [customerRes, workerRes] = await Promise.all([
+          supabase.from('customers').select('full_name').eq('id', data.customer_id).single(),
+          data.worker_id
+            ? supabase.from('workers').select('name').eq('id', data.worker_id).single()
+            : Promise.resolve({ data: null }),
+        ])
+        await supabase.from('transaction_alerts').insert({
+          vehicle_id: data.vehicle_id ?? null,
+          vehicle_plate: null,
+          customer_id: data.customer_id,
+          customer_name: customerRes.data?.full_name ?? 'desconocido',
+          worker_id: data.worker_id ?? null,
+          worker_name: (workerRes as { data: { name: string } | null }).data?.name ?? null,
+          transaction_id: transaction.id,
+          prev_transaction_id: null,
+          amount_soles: data.amount_soles,
+          alert_type: 'high_amount',
+        })
+      }
+    } catch { /* don't fail transaction if alert fails */ }
+
     return NextResponse.json({
       transaction,
       points_earned: pointsEarned,
-      new_total_points: customer?.total_points ?? null,
+      new_total_points: (customer as { total_points: number } | null)?.total_points ?? null,
+      new_glp_points: (customer as { glp_points: number } | null)?.glp_points ?? null,
+      new_liquid_points: (customer as { liquid_points: number } | null)?.liquid_points ?? null,
     }, { status: 201 })
   }
 
-  // Redemption — fetch live points threshold from app_settings
+  // ─── REDEMPTION ───────────────────────────────────────────────────────────
   const staticGoal = REDEMPTION_GOALS.find((g) => g.fuelType === data.fuel_type)
   if (!staticGoal) {
     return NextResponse.json({ error: 'Tipo de combustible inválido' }, { status: 400 })
@@ -147,17 +250,42 @@ export async function POST(request: NextRequest) {
 
   const { data: customer, error: fetchError } = await supabase
     .from('customers')
-    .select('total_points')
+    .select('total_points, glp_points, liquid_points, pin')
     .eq('id', data.customer_id)
-    .single()
+    .single() as { data: { total_points: number; glp_points: number; liquid_points: number; pin: string | null } | null; error: unknown }
+
+  // PIN verification
+  if (!fetchError && customer && customer.pin !== null) {
+    const customerPin = customer.pin
+    if (!data.pin) {
+      return NextResponse.json({ error: 'PIN requerido', pin_required: true }, { status: 403 })
+    }
+    const rateCheck = await checkRateLimit(data.customer_id, supabase)
+    if (rateCheck.blocked) {
+      return NextResponse.json(
+        { error: `Demasiados intentos. Espera ${rateCheck.secondsLeft} segundos.` },
+        { status: 429 }
+      )
+    }
+    if (data.pin !== customerPin) {
+      await recordFailure(data.customer_id, supabase)
+      return NextResponse.json({ error: 'PIN incorrecto' }, { status: 401 })
+    }
+    await resetAttempts(data.customer_id, supabase)
+  }
 
   if (fetchError || !customer) {
     return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
   }
 
-  if (customer.total_points < pointsRequired) {
+  // Use the correct point pool for this fuel type
+  const isGlpRedemption = (GLP_FUELS as readonly string[]).includes(data.fuel_type)
+  const availablePoints = isGlpRedemption ? customer.glp_points : customer.liquid_points
+
+  if (availablePoints < pointsRequired) {
+    const poolName = isGlpRedemption ? 'GLP' : 'líquidos'
     return NextResponse.json(
-      { error: `Puntos insuficientes. Necesitas ${pointsRequired}, tienes ${customer.total_points}` },
+      { error: `Puntos ${poolName} insuficientes. Necesitas ${pointsRequired}, tienes ${availablePoints}` },
       { status: 422 }
     )
   }
@@ -168,10 +296,11 @@ export async function POST(request: NextRequest) {
       customer_id: data.customer_id,
       vehicle_id: data.vehicle_id ?? null,
       amount_soles: 0,
-      points_earned: pointsRequired,
+      points_earned: -pointsRequired,
       type: 'redemption',
       fuel_type: data.fuel_type,
       worker_id: data.worker_id ?? null,
+      notes: null,
     })
     .select()
     .single()
@@ -182,13 +311,15 @@ export async function POST(request: NextRequest) {
 
   const { data: updatedCustomer } = await supabase
     .from('customers')
-    .select('total_points')
+    .select('total_points, glp_points, liquid_points')
     .eq('id', data.customer_id)
     .single()
 
   return NextResponse.json({
     transaction,
     points_redeemed: pointsRequired,
-    new_total_points: updatedCustomer?.total_points ?? null,
+    new_total_points: (updatedCustomer as { total_points: number } | null)?.total_points ?? null,
+    new_glp_points: (updatedCustomer as { glp_points: number } | null)?.glp_points ?? null,
+    new_liquid_points: (updatedCustomer as { liquid_points: number } | null)?.liquid_points ?? null,
   }, { status: 201 })
 }

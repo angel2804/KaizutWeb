@@ -5,16 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Modal from '@/components/ui/Modal'
-
-const navLinks = [
-  { label: 'Servicios', href: '#servicios' },
-  { label: 'Para Empresas', href: '#empresas' },
-]
+import VerPuntosDropdown from '@/components/landing/VerPuntosDropdown'
+import CustomerSelfRegister from '@/components/landing/CustomerSelfRegister'
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showPuntosModal, setShowPuntosModal] = useState(false)
+  const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -51,6 +50,16 @@ export default function Header() {
     setPassword('')
     setLoginError('')
     setShowLoginModal(true)
+  }
+
+  const openPuntos = () => {
+    setMenuOpen(false)
+    setShowPuntosModal(true)
+  }
+
+  const openRegister = () => {
+    setMenuOpen(false)
+    setShowRegisterModal(true)
   }
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -90,7 +99,7 @@ export default function Header() {
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
             {logoUrl ? (
               <img src={logoUrl} alt="Logo" className="h-10 max-w-[140px] object-contain flex-shrink-0" />
             ) : (
@@ -104,61 +113,40 @@ export default function Header() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <button
-                key={link.href}
-                onClick={() => handleNavClick(link.href)}
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                {link.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Desktop CTA */}
-          <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={openLoginModal}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-            >
+          <div className="hidden md:flex items-center gap-0.5">
+            <button onClick={() => handleNavClick('#servicios')} className="px-3 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/5 transition-colors">
+              Servicios
+            </button>
+            <button onClick={() => handleNavClick('#empresas')} className="px-3 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/5 transition-colors">
+              Para Empresas
+            </button>
+            <button onClick={openLoginModal} className="px-3 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/5 transition-colors">
               Iniciar Sesión
             </button>
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => handleNavClick('#puntos')}
-              className="px-4 py-2 text-sm font-semibold text-red-400 border border-red-500/40 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
-            >
-              🎯 Consultar Puntos
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => handleNavClick('#empresas')}
-              className="px-4 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-xl transition-colors shadow-[0_0_15px_rgba(15,118,110,0.4)] cursor-pointer"
-            >
+            <button onClick={() => handleNavClick('#empresas')} className="px-3 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-lg transition-colors ml-1">
               Contactar
-            </motion.button>
+            </button>
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors text-slate-300"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {menuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
+          {/* Mobile: hamburger only (Ver Puntos + Registrarse are floating pills) */}
+          <div className="flex md:hidden items-center">
+            <button
+              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors text-slate-400"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Toggle menu"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {menuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </nav>
 
-        {/* Mobile menu */}
+        {/* Mobile dropdown menu */}
         <AnimatePresence>
           {menuOpen && (
             <motion.div
@@ -169,33 +157,26 @@ export default function Header() {
               className="md:hidden bg-navy-900/95 backdrop-blur-md border-b border-white/5 overflow-hidden"
             >
               <div className="px-4 py-4 flex flex-col gap-1">
-                {navLinks.map((link) => (
-                  <button
-                    key={link.href}
-                    onClick={() => handleNavClick(link.href)}
-                    className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
-                  >
-                    {link.label}
-                  </button>
-                ))}
+                <button onClick={() => handleNavClick('#servicios')} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors">
+                  Servicios
+                </button>
+                <button onClick={() => handleNavClick('#empresas')} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors">
+                  Para Empresas
+                </button>
                 <div className="border-t border-white/5 mt-2 pt-2 flex flex-col gap-2">
-                  <button
-                    onClick={() => handleNavClick('#puntos')}
-                    className="w-full text-left px-4 py-3 text-sm font-semibold text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/10 transition-colors"
-                  >
-                    🎯 Consultar Puntos
+                  <button onClick={openLoginModal} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors">
+                    Iniciar Sesión (Admin)
                   </button>
-                  <button
-                    onClick={openLoginModal}
-                    className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
-                  >
-                    Iniciar Sesión
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('#empresas')}
-                    className="px-4 py-3 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-xl transition-colors"
-                  >
+                  <button onClick={() => handleNavClick('#empresas')} className="px-4 py-3 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 rounded-xl transition-colors">
                     Contactar
+                  </button>
+                </div>
+                <div className="border-t border-white/5 mt-2 pt-2 flex flex-col gap-2">
+                  <button onClick={openPuntos} className="px-4 py-3 text-sm font-semibold text-slate-900 bg-yellow-400 hover:bg-yellow-300 rounded-xl transition-colors flex items-center gap-2">
+                    <span>🔳</span> Ver QR
+                  </button>
+                  <button onClick={openRegister} className="px-4 py-3 text-sm font-semibold text-slate-900 bg-yellow-400 hover:bg-yellow-300 rounded-xl transition-colors flex items-center gap-2">
+                    <span>📋</span> Registrarse
                   </button>
                 </div>
               </div>
@@ -204,12 +185,50 @@ export default function Header() {
         </AnimatePresence>
       </motion.header>
 
-      {/* Admin Login Modal */}
+      {/* Floating customer action pills — bottom left */}
+      <div className="fixed bottom-6 left-6 z-40 flex flex-col gap-2 items-start">
+        <motion.button
+          onClick={openRegister}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-2 px-5 py-3.5 rounded-2xl font-semibold shadow-2xl bg-yellow-400 hover:bg-yellow-300 text-slate-900 shadow-yellow-400/30 transition-colors"
+        >
+          <span className="text-lg">📋</span>
+          <span className="text-sm">Registrarse</span>
+        </motion.button>
+        <motion.button
+          onClick={openPuntos}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-2 px-5 py-3.5 rounded-2xl font-semibold shadow-2xl bg-yellow-400 hover:bg-yellow-300 text-slate-900 shadow-yellow-400/30 transition-colors"
+        >
+          <span className="text-lg">🔳</span>
+          <span className="text-sm">Ver QR</span>
+        </motion.button>
+      </div>
+
+      {/* Ver QR Modal — mobile sheet */}
       <Modal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        title="Acceso Administrador"
+        isOpen={showPuntosModal}
+        onClose={() => setShowPuntosModal(false)}
+        title="Ver QR y Puntos"
+        mobileSheet
       >
+        <VerPuntosDropdown onClose={() => setShowPuntosModal(false)} />
+      </Modal>
+
+      {/* Registrarse Modal — mobile sheet */}
+      <Modal
+        isOpen={showRegisterModal}
+        onClose={() => setShowRegisterModal(false)}
+        title="Crear cuenta de puntos"
+        mobileSheet
+      >
+        <CustomerSelfRegister onClose={() => setShowRegisterModal(false)} />
+      </Modal>
+
+      {/* Admin Login Modal */}
+      <Modal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} title="Acceso Administrador">
         <form onSubmit={handleAdminLogin} className="space-y-4">
           <div className="space-y-3">
             <div>
@@ -236,20 +255,16 @@ export default function Header() {
               />
             </div>
           </div>
-
           <AnimatePresence>
             {loginError && (
               <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                 className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5 text-center"
               >
                 {loginError}
               </motion.p>
             )}
           </AnimatePresence>
-
           <motion.button
             type="submit"
             disabled={!username || !password || loginLoading}

@@ -10,13 +10,15 @@ import CreateCustomer from '@/components/dashboard/CreateCustomer'
 import AddTransaction from '@/components/dashboard/AddTransaction'
 import AddVehicle from '@/components/dashboard/AddVehicle'
 import RedemptionPanel from '@/components/dashboard/RedemptionPanel'
+import SetCustomerPin from '@/components/dashboard/SetCustomerPin'
+import AnnulPointsModal from '@/components/dashboard/AnnulPointsModal'
 import WorkerManager from '@/components/dashboard/WorkerManager'
 import SettingsPanel from '@/components/dashboard/SettingsPanel'
 import TransactionHistory from '@/components/dashboard/TransactionHistory'
 import AlertsPanel from '@/components/dashboard/AlertsPanel'
 import Modal from '@/components/ui/Modal'
 
-type ModalType = 'transaction' | 'vehicle' | 'redemption' | 'create'
+type ModalType = 'transaction' | 'vehicle' | 'redemption' | 'create' | 'set-pin' | 'annul-points'
 type Tab = 'clientes' | 'trabajadores' | 'historial' | 'alertas' | 'configuracion'
 
 interface Toast { id: number; message: string }
@@ -154,8 +156,23 @@ export default function DashboardPage() {
           onSuccess={v => { refreshCustomer(customer.dni); setActiveModal(null); addToast(`🚗 Placa ${v.plate} registrada`) }} />}
       </Modal>
       <Modal isOpen={activeModal === 'redemption'} onClose={() => setActiveModal(null)} title="Canjear Puntos" maxWidth="lg">
-        {customer && <RedemptionPanel customerId={customer.id} currentPoints={customer.total_points}
+        {customer && <RedemptionPanel
+          customerId={customer.id}
+          currentPoints={customer.total_points}
+          has_pin={customer.has_pin}
           onSuccess={(ft: FuelType, pts: number) => { refreshCustomer(customer.dni); setActiveModal(null); addToast(`🎁 Canjeaste ${pts.toLocaleString()} pts por ${ft}`) }} />}
+      </Modal>
+      <Modal isOpen={activeModal === 'set-pin'} onClose={() => setActiveModal(null)} title="PIN de Seguridad">
+        {customer && <SetCustomerPin
+          customerId={customer.id}
+          customerName={customer.full_name}
+          hasPin={customer.has_pin}
+          onSuccess={() => { refreshCustomer(customer.dni); setActiveModal(null); addToast(`🔒 PIN actualizado para ${customer.full_name}`) }} />}
+      </Modal>
+      <Modal isOpen={activeModal === 'annul-points'} onClose={() => setActiveModal(null)} title="Anular Puntos">
+        {customer && <AnnulPointsModal
+          customer={customer}
+          onSuccess={() => { refreshCustomer(customer.dni); setActiveModal(null); addToast(`✂️ Puntos anulados para ${customer.full_name}`) }} />}
       </Modal>
 
       {/* Toasts */}

@@ -9,7 +9,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
 type SearchTab = 'dni' | 'nombre' | 'placa' | 'qr'
-type Step = 'search' | 'register' | 'transaction' | 'success'
+type Step = 'search' | 'not_found' | 'transaction' | 'success' | 'pin-reset-search' | 'pin-reset-new-pin' | 'pin-reset-done'
 
 interface TransactionWizardProps {
   workerId: string
@@ -22,6 +22,9 @@ interface CustomerBasic {
   dni: string
   full_name: string
   total_points: number
+  glp_points?: number
+  liquid_points?: number
+  has_pin?: boolean
 }
 
 export default function TransactionWizard({ workerId, workerName, onClose }: TransactionWizardProps) {
@@ -47,12 +50,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
 
   // Customer state
   const [customer, setCustomer] = useState<CustomerWithVehicles | null>(null)
-  const [prefillDni, setPrefillDni] = useState('')
-
-  // Register state
-  const [regForm, setRegForm] = useState({ full_name: '', dni: '', phone: '', email: '' })
-  const [registering, setRegistering] = useState(false)
-  const [regError, setRegError] = useState('')
+  const [notFoundDni, setNotFoundDni] = useState('')
 
   // Transaction state
   const [txMode, setTxMode] = useState<'compra' | 'canje'>('compra')
@@ -72,6 +70,21 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
   const [cameraError, setCameraError] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const [pointsEnabled, setPointsEnabled] = useState(true)
+
+  // Redemption PIN state
+  const [redeemPin, setRedeemPin] = useState('')
+  const [pinRequired, setPinRequired] = useState(false)
+
+  // PIN reset state (worker-initiated)
+  const [pinResetDni, setPinResetDni] = useState('')
+  const [pinResetReason, setPinResetReason] = useState('')
+  const [pinResetCustomerId, setPinResetCustomerId] = useState('')
+  const [pinResetSearching, setPinResetSearching] = useState(false)
+  const [pinResetSearchError, setPinResetSearchError] = useState('')
+  const [pinResetNewPin, setPinResetNewPin] = useState('')
+  const [pinResetConfirm, setPinResetConfirm] = useState('')
+  const [pinResetSubmitting, setPinResetSubmitting] = useState(false)
+  const [pinResetError, setPinResetError] = useState('')
 
   // Success state
   const [pointsEarned, setPointsEarned] = useState(0)
@@ -158,9 +171,8 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
         setSearching(true)
         const res = await fetch(`/api/customers?dni=${scannedDni}`)
         if (res.status === 404) {
-          setPrefillDni(scannedDni)
-          setRegForm(f => ({ ...f, dni: scannedDni }))
-          setStep('register')
+          setNotFoundDni(scannedDni)
+          setStep('not_found')
         } else if (res.ok) {
           const data = await res.json()
           setCustomer(data.customer)
@@ -198,9 +210,8 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
     setSearchError('')
     const res = await fetch(`/api/customers?dni=${dniInput}`)
     if (res.status === 404) {
-      setPrefillDni(dniInput)
-      setRegForm(f => ({ ...f, dni: dniInput }))
-      setStep('register')
+      setNotFoundDni(dniInput)
+      setStep('not_found')
     } else if (res.ok) {
       const data = await res.json()
       setCustomer(data.customer)
@@ -241,30 +252,6 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
     setSearching(false)
   }
 
-  // ── REGISTER ─────────────────────────────────────────────────────
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!regForm.full_name.trim() || !regForm.dni) return
-    setRegistering(true)
-    setRegError('')
-    const res = await fetch('/api/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        dni: regForm.dni,
-        full_name: regForm.full_name.trim(),
-        phone: regForm.phone || null,
-        email: regForm.email || null,
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setRegError(data.error || 'Error'); setRegistering(false); return }
-    setCustomer(data.customer)
-    setVehicleId('')
-    setStep('transaction')
-    setRegistering(false)
-  }
-
   // ── TRANSACTION ───────────────────────────────────────────────────
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -293,7 +280,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
 
     const body = txMode === 'compra'
       ? { type: 'purchase', customer_id: customer.id, vehicle_id: finalVehicleId || null, amount_soles: parseFloat(amount), fuel_type: fuelType, worker_id: workerId || null }
-      : { type: 'redemption', customer_id: customer.id, vehicle_id: finalVehicleId || null, fuel_type: redeemFuel, worker_id: workerId || null }
+      : { type: 'redemption', customer_id: customer.id, vehicle_id: finalVehicleId || null, fuel_type: redeemFuel, worker_id: workerId || null, pin: redeemPin || undefined }
 
     const res = await fetch('/api/transactions', {
       method: 'POST',
@@ -301,7 +288,10 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
       body: JSON.stringify(body),
     })
     const data = await res.json()
-    if (!res.ok) { setTxError(data.error || 'Error'); setSubmitting(false); return }
+    if (!res.ok) {
+      if (data.pin_required) { setPinRequired(true); setSubmitting(false); return }
+      setTxError(data.error || 'Error'); setSubmitting(false); return
+    }
 
     setPointsEarned(txMode === 'compra' ? data.points_earned : data.points_redeemed)
     setNewTotal(data.new_total_points)
@@ -603,7 +593,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                             setDniInput(scannedDni)
                             const res = await fetch(`/api/customers?dni=${scannedDni}`)
                             if (res.status === 404) {
-                              setPrefillDni(scannedDni); setRegForm(f => ({ ...f, dni: scannedDni })); setStep('register')
+                              setNotFoundDni(scannedDni); setStep('not_found')
                             } else if (res.ok) {
                               const data = await res.json()
                               setCustomer(data.customer); setVehicleId(''); setPlateSearch(''); setStep('transaction')
@@ -628,47 +618,39 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
               </div>
             )}
 
-            {/* Register new shortcut */}
-            <div className="pt-2 border-t border-white/5 text-center">
-              <button onClick={() => { setPrefillDni(''); setRegForm({ full_name: '', dni: '', phone: '', email: '' }); setStep('register') }}
-                className="text-sm text-red-400 hover:text-blue-300 transition-colors">
-                + Registrar cliente nuevo
+            {/* PIN reset shortcut */}
+            <div className="pt-3 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => { setPinResetDni(''); setPinResetReason(''); setPinResetSearchError(''); setStep('pin-reset-search') }}
+                className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1 flex items-center justify-center gap-1"
+              >
+                🔑 Restablecer PIN de un cliente
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* ── STEP 2: REGISTER ───────────────────────────────────────── */}
-        {step === 'register' && (
-          <motion.div key="register"
+        {/* ── STEP 2: NOT FOUND ──────────────────────────────────────── */}
+        {step === 'not_found' && (
+          <motion.div key="not_found"
             initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
-            transition={{ duration: 0.25 }}>
-            <button onClick={() => setStep('search')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white mb-4 transition-colors">
+            transition={{ duration: 0.25 }} className="space-y-5">
+            <button onClick={() => setStep('search')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
               ← Volver
             </button>
-            <h3 className="font-semibold text-white mb-4">Registrar nuevo cliente</h3>
-            <form onSubmit={handleRegister} className="space-y-3">
-              <Input label="Nombre completo *" placeholder="Juan Pérez"
-                value={regForm.full_name}
-                onChange={e => setRegForm(f => ({ ...f, full_name: e.target.value }))}
-                autoFocus />
-              <Input label="DNI *" placeholder="12345678"
-                value={regForm.dni}
-                onChange={e => setRegForm(f => ({ ...f, dni: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-                maxLength={8} />
-              <Input label="Teléfono (opcional)" placeholder="+51 999 000 000" type="tel"
-                value={regForm.phone}
-                onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))} />
-              <Input label="Correo (opcional)" placeholder="juan@email.com" type="email"
-                value={regForm.email}
-                onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))} />
-              {regError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{regError}</p>}
-              <Button type="submit" variant="primary" size="lg" className="w-full"
-                loading={registering}
-                disabled={!regForm.full_name.trim() || regForm.dni.length !== 8}>
-                Registrar y continuar
-              </Button>
-            </form>
+            <div className="py-6 text-center space-y-4">
+              <div className="text-4xl">🔍</div>
+              <div>
+                <p className="font-semibold text-white">Cliente no encontrado</p>
+                <p className="text-sm text-slate-400 mt-1">
+                  DNI <span className="font-mono text-white">{notFoundDni}</span> no está registrado en el sistema.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-300">
+                Pídele al cliente que se registre escaneando el código QR de la estación o visitando la página web.
+              </div>
+            </div>
           </motion.div>
         )}
 
@@ -703,19 +685,25 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                 <p className="font-semibold text-white text-sm">{customer.full_name}</p>
                 <p className="text-xs text-slate-400">DNI: {customer.dni}</p>
               </div>
-              <div className="text-right">
-                <p className="text-yellow-400 font-bold text-lg">{customer.total_points.toLocaleString()}</p>
-                <p className="text-xs text-slate-500">puntos</p>
+              <div className="text-right space-y-0.5">
+                <div>
+                  <span className="text-blue-300 font-bold text-sm">{(customer.glp_points ?? 0).toLocaleString()}</span>
+                  <span className="text-xs text-slate-500 ml-1">GLP</span>
+                </div>
+                <div>
+                  <span className="text-yellow-400 font-bold text-sm">{(customer.liquid_points ?? 0).toLocaleString()}</span>
+                  <span className="text-xs text-slate-500 ml-1">líq.</span>
+                </div>
               </div>
             </div>
 
             {/* Mode toggle */}
             <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/8 mb-4">
-              <button type="button" onClick={() => { setTxMode('compra'); setTxError('') }}
+              <button type="button" onClick={() => { setTxMode('compra'); setTxError(''); setRedeemPin(''); setPinRequired(false) }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${txMode === 'compra' ? 'bg-red-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                 💳 Compra
               </button>
-              <button type="button" onClick={() => { setTxMode('canje'); setTxError('') }}
+              <button type="button" onClick={() => { setTxMode('canje'); setTxError(''); setRedeemPin(''); setPinRequired(false) }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${txMode === 'canje' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                 🎁 Canjear Puntos
               </button>
@@ -759,7 +747,8 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-300 block">Selecciona qué canjear</label>
                     {REDEMPTION_GOALS.map(goal => {
-                      const canRedeem = customer.total_points >= goal.pointsRequired
+                      const poolPts = goal.fuelType === 'GLP' ? (customer.glp_points ?? 0) : (customer.liquid_points ?? 0)
+                      const canRedeem = poolPts >= goal.pointsRequired
                       const selected = redeemFuel === goal.fuelType
                       return (
                         <button key={goal.fuelType} type="button"
@@ -783,7 +772,7 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                             </p>
                             {!canRedeem && (
                               <p className="text-xs text-slate-600">
-                                faltan {(goal.pointsRequired - customer.total_points).toLocaleString()}
+                                faltan {(goal.pointsRequired - poolPts).toLocaleString()}
                               </p>
                             )}
                           </div>
@@ -837,13 +826,35 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                 )
               })()}
 
+              {/* PIN input for redemption */}
+              {txMode === 'canje' && (pinRequired || customer.has_pin) && (
+                <div>
+                  <label className="text-sm font-medium text-slate-300 block mb-1.5">PIN del cliente</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={redeemPin}
+                    onChange={e => { setRedeemPin(e.target.value.replace(/\D/g, '').slice(0, 6)); setTxError('') }}
+                    placeholder="Ingresa el PIN (4-6 dígitos)"
+                    autoFocus={pinRequired}
+                    className="w-full rounded-xl px-4 py-3 text-base text-center text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 placeholder:text-slate-500 tracking-widest transition-colors"
+                  />
+                </div>
+              )}
+
               {txError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{txError}</p>}
 
               <Button type="submit"
                 variant={txMode === 'compra' ? 'accent' : 'primary'}
                 size="lg" className="w-full"
                 loading={submitting}
-                disabled={txMode === 'compra' ? (!amount || parseFloat(amount) <= 0) : !REDEMPTION_GOALS.find(g => g.fuelType === redeemFuel && customer.total_points >= g.pointsRequired)}>
+                disabled={txMode === 'compra'
+                  ? (!amount || parseFloat(amount) <= 0)
+                  : !REDEMPTION_GOALS.find(g => {
+                      const poolPts = g.fuelType === 'GLP' ? (customer.glp_points ?? 0) : (customer.liquid_points ?? 0)
+                      return g.fuelType === redeemFuel && poolPts >= g.pointsRequired
+                    })}>
                 {txMode === 'compra' ? 'Registrar Carga' : `Confirmar Canje · ${redeemFuel}`}
               </Button>
             </form>
@@ -905,6 +916,151 @@ export default function TransactionWizard({ workerId, workerName, onClose }: Tra
                 Cerrar
               </Button>
             </motion.div>
+          </motion.div>
+        )}
+
+        {/* ── PIN RESET: SEARCH ──────────────────────────────────────── */}
+        {step === 'pin-reset-search' && (
+          <motion.div key="pin-reset-search"
+            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.25 }} className="space-y-4">
+            <button onClick={() => setStep('search')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors">
+              ← Volver
+            </button>
+            <div>
+              <p className="font-semibold text-white text-sm">Restablecer PIN de cliente</p>
+              <p className="text-xs text-slate-400 mt-1">Busca al cliente por DNI y escribe el motivo del restablecimiento.</p>
+            </div>
+            <div className="space-y-3">
+              <Input label="DNI del cliente" placeholder="12345678"
+                value={pinResetDni}
+                onChange={e => { setPinResetDni(e.target.value.replace(/\D/g, '').slice(0, 8)); setPinResetSearchError('') }}
+                hint={`${pinResetDni.length}/8 dígitos`}
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Motivo *</label>
+                <textarea
+                  value={pinResetReason}
+                  onChange={e => setPinResetReason(e.target.value)}
+                  placeholder="Ej: Cliente olvidó su PIN, se verificó identidad con DNI físico"
+                  rows={2}
+                  className="w-full rounded-xl px-4 py-3 text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-slate-500 resize-none transition-colors"
+                />
+              </div>
+              {pinResetSearchError && <p className="text-sm text-red-400">{pinResetSearchError}</p>}
+              <Button variant="primary" size="lg" className="w-full"
+                disabled={pinResetDni.length !== 8 || pinResetReason.trim().length === 0}
+                loading={pinResetSearching}
+                onClick={async () => {
+                  setPinResetSearching(true)
+                  setPinResetSearchError('')
+                  const res = await fetch(`/api/customers?dni=${pinResetDni}`)
+                  if (res.status === 404) {
+                    setPinResetSearchError('Cliente no encontrado con ese DNI')
+                    setPinResetSearching(false)
+                    return
+                  }
+                  if (!res.ok) { setPinResetSearchError('Error al buscar'); setPinResetSearching(false); return }
+                  const d = await res.json()
+                  // Reset PIN via API
+                  const resetRes = await fetch('/api/customers/pin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'reset', customer_id: d.customer.id, reason: pinResetReason.trim(), worker_name: workerName, worker_id: workerId }),
+                  })
+                  if (!resetRes.ok) {
+                    const rData = await resetRes.json()
+                    setPinResetSearchError(rData.error || 'Error al resetear PIN')
+                    setPinResetSearching(false)
+                    return
+                  }
+                  setPinResetCustomerId(d.customer.id)
+                  setPinResetNewPin('')
+                  setPinResetConfirm('')
+                  setPinResetError('')
+                  setStep('pin-reset-new-pin')
+                  setPinResetSearching(false)
+                }}>
+                Restablecer PIN
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── PIN RESET: NEW PIN ─────────────────────────────────────── */}
+        {step === 'pin-reset-new-pin' && (
+          <motion.div key="pin-reset-new-pin"
+            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.25 }} className="space-y-5">
+            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
+              <p className="text-sm font-semibold text-blue-300">📱 Dale el celular al cliente</p>
+              <p className="text-xs text-slate-400 mt-1">El cliente debe ingresar su nuevo PIN ahora.</p>
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinResetNewPin}
+              onChange={e => setPinResetNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="Nuevo PIN (4-6 dígitos)"
+              autoFocus
+              className="w-full rounded-2xl px-4 py-4 text-base text-center text-white bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 placeholder:text-slate-500 tracking-widest transition-colors"
+            />
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinResetConfirm}
+              onChange={e => setPinResetConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="Confirmar PIN"
+              className={`w-full rounded-2xl px-4 py-4 text-base text-center text-white bg-white/5 border focus:outline-none focus:ring-2 placeholder:text-slate-500 tracking-widest transition-colors ${
+                pinResetConfirm.length >= pinResetNewPin.length && pinResetNewPin !== pinResetConfirm
+                  ? 'border-red-500/60' : 'border-white/10 focus:border-yellow-400/50'
+              }`}
+            />
+            {pinResetConfirm.length >= pinResetNewPin.length && pinResetNewPin !== pinResetConfirm && (
+              <p className="text-sm text-red-400 -mt-2">Los PINs no coinciden</p>
+            )}
+            {pinResetError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2">{pinResetError}</p>}
+            <Button variant="primary" size="lg" className="w-full"
+              disabled={pinResetNewPin.length < 4 || pinResetNewPin !== pinResetConfirm}
+              loading={pinResetSubmitting}
+              onClick={async () => {
+                setPinResetSubmitting(true)
+                setPinResetError('')
+                const res = await fetch('/api/customers/pin', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'set', customer_id: pinResetCustomerId, pin: pinResetNewPin, worker_id: workerId }),
+                })
+                if (!res.ok) {
+                  const d = await res.json()
+                  setPinResetError(d.error || 'Error al guardar PIN')
+                  setPinResetSubmitting(false)
+                  return
+                }
+                setStep('pin-reset-done')
+                setPinResetSubmitting(false)
+              }}>
+              Confirmar PIN
+            </Button>
+          </motion.div>
+        )}
+
+        {/* ── PIN RESET: DONE ────────────────────────────────────────── */}
+        {step === 'pin-reset-done' && (
+          <motion.div key="pin-reset-done"
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }} className="text-center py-6 space-y-5">
+            <div className="w-16 h-16 rounded-full bg-green-500/15 border-2 border-green-500/40 flex items-center justify-center text-4xl mx-auto">✅</div>
+            <div>
+              <p className="text-lg font-bold text-white">PIN restablecido</p>
+              <p className="text-sm text-slate-400 mt-1">El cliente ya puede usar su nuevo PIN para canjear puntos.</p>
+            </div>
+            <Button variant="secondary" size="md" className="w-full"
+              onClick={() => { setStep('search'); setPinResetDni(''); setPinResetReason(''); setPinResetNewPin(''); setPinResetConfirm('') }}>
+              Finalizar
+            </Button>
           </motion.div>
         )}
 
