@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: 'Error al registrar transacción' }, { status: 500 })
+      return NextResponse.json({ error: 'Error al registrar transacción', detail: error.message, code: error.code }, { status: 500 })
     }
 
     // Fetch updated customer points
